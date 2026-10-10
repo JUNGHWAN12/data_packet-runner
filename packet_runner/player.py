@@ -123,25 +123,38 @@ class PlayerSprite(arcade.Sprite):
     SLIDE_FRAMES = ["slide_in", "slide_0", "slide_1", "slide_out_0", "slide_out_1"]
     SLIDE_IN = (0.05, 0.11)   # slide_in → slide_0 → slide_1(유지)로 넘어가는 시각
     SLIDE_OUT = 0.12          # 일어서는 동작 시간 (slide_out_0 → slide_out_1)
+    FLIP_TIME = 0.45          # 2단 점프 공중제비 한 바퀴 시간
 
     def __init__(self):
         folder = C.GENERATED / "runner"
-        names = self.RUN_FRAMES + ["jump_up", "jump_down"] + self.SLIDE_FRAMES
+        names = self.RUN_FRAMES + ["jump_up", "jump_down", "flip"] + self.SLIDE_FRAMES
         self.frames = {n: arcade.load_texture(folder / f"{n}.png") for n in names}
         super().__init__(self.frames["run_0"], scale=C.CHAR_SCALE)
         self.anim_time = 0.0
         self.run_phase = 0.0      # 달리기 프레임 진행도 (속도에 맞춰 조금씩 쌓는다)
         self.prev_pose = Pose.RUN
         self.slide_out = 0.0
+        self.flip = 0.0           # 공중제비 남은 시간
         self.center_x = C.PLAYER_X
 
     def sync(self, body: PlayerBody, dt: float, speed: float, invincible: float) -> None:
         self.anim_time += dt
         bob = 0
-        if body.pose == Pose.JUMP:
+        angle = 0.0
+        if body.double_jumped:
+            self.flip = self.FLIP_TIME
+        if body.pose == Pose.JUMP and self.flip > 0:
+            # 앞으로 한 바퀴: 처음엔 빠르게, 끝에서 천천히 (ease-out)
+            self.flip = max(0.0, self.flip - dt)
+            k = 1 - self.flip / self.FLIP_TIME
+            angle = 360 * (1 - (1 - k) ** 2) if self.flip > 0 else 0.0
+            name = "flip" if self.flip > 0 else "jump_down"
+            self.slide_out = 0.0
+        elif body.pose == Pose.JUMP:
             name = "jump_up" if body.vy > 0 else "jump_down"
             self.slide_out = 0.0
         elif body.pose == Pose.SLIDE:
+            self.flip = 0.0
             if body.slide_time < self.SLIDE_IN[0]:
                 name = "slide_in"
             elif body.slide_time < self.SLIDE_IN[1]:
@@ -150,6 +163,7 @@ class PlayerSprite(arcade.Sprite):
                 name = "slide_1"
                 bob = int(self.anim_time * 20) % 2   # 미끄러지는 느낌의 1px 흔들림
         else:
+            self.flip = 0.0                         # 공중제비 도중 착지하면 바로 일어섬
             if self.prev_pose == Pose.SLIDE:
                 self.slide_out = self.SLIDE_OUT     # 슬라이딩에서 일어서는 동작
             if self.slide_out > 0:
@@ -162,6 +176,7 @@ class PlayerSprite(arcade.Sprite):
                 name = self.RUN_FRAMES[int(self.run_phase) % len(self.RUN_FRAMES)]
         self.prev_pose = body.pose
         self.texture = self.frames[name]
+        self.angle = angle                          # Arcade 3: 시계 방향 = 오른쪽으로 달리는 캐릭터의 앞구르기
         self.center_x = C.PLAYER_X
         self.center_y = round(body.feet_y + self.height / 2) + bob
         # 무적 시간에는 깜빡임

@@ -41,6 +41,7 @@ SLIDE_FRAMES = [
     ("slide_out_1", 6, "head"),   # 다시 달리기 자세
 ]
 SLIDE_SCALE = 0.44   # 슬라이딩 시트 → 원본 러너 크기 (머리 크기가 같아지는 배율)
+FLIP_FROM = "slide_out_1"   # 2단 점프 공중제비에 쓰는 웅크린 자세 (가운데 정렬해 제자리에서 돌린다)
 CANVAS = (120, 100)  # 모든 러너 프레임 공통 캔버스 (발 = 맨 아래 줄)
 HEAD_ROWS = 35       # 머리 중심을 구할 때 보는 위쪽 줄 수
 
@@ -130,7 +131,12 @@ def build_slide() -> None:
         frame = _trim(frame)
         center = _head_center_x(frame) if align == "head" else frame.width / 2
         _place(frame, center).save(out / f"{name}.png")
-    print(f"slide: {len(SLIDE_FRAMES)} frames -> {out}")
+        if name == FLIP_FROM:
+            side = max(frame.size) + 4
+            flip = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+            flip.alpha_composite(frame, ((side - frame.width) // 2, (side - frame.height) // 2))
+            flip.save(out / "flip.png")
+    print(f"slide: {len(SLIDE_FRAMES)} frames + flip -> {out}")
 
 
 # 'NET' 글자 (3x6 픽셀)

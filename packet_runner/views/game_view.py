@@ -2,6 +2,7 @@
 
 import math
 import random
+from collections import deque
 
 import arcade
 
@@ -25,6 +26,15 @@ class GameView(arcade.View):
         self.badge = arcade.Sprite(assets.icon("packet"))
         self.player_list = arcade.SpriteList()
         self.player_list.extend([self.player, self.badge])
+        # 공중제비 잔상: 지난 프레임들의 모습을 하늘색으로 옅게 남긴다
+        self.trail: deque = deque(maxlen=8)
+        self.ghosts = arcade.SpriteList()
+        for alpha in (120, 75, 40):
+            ghost = arcade.Sprite(self.player.frames["flip"], scale=C.CHAR_SCALE)
+            ghost.color = C.CYAN
+            ghost.alpha = alpha
+            ghost.visible = False
+            self.ghosts.append(ghost)
         self.server = arcade.Sprite(assets.icon("server"))
         self.server.visible = False
         self.server_list = arcade.SpriteList()
@@ -116,6 +126,7 @@ class GameView(arcade.View):
         if self.body.pose == Pose.SLIDE and self.body.on_ground and random.random() < 0.7:
             self.effects.spark(C.PLAYER_X + random.uniform(-40, 20), C.GROUND_Y + 4, random.choice((C.CYAN, C.WHITE)))
         self._place_badge()
+        self._update_trail(dt)
         self._update_shake(dt)
         self.hud.update(self.score.score, self.score.fragments, self.score.collisions, self.t, C.ZONES[self.zone][1])
 
@@ -202,6 +213,19 @@ class GameView(arcade.View):
         self.badge.position = (C.PLAYER_X - 6, round(self.body.feet_y + top + 30 + bob))
         self.badge.alpha = self.player.alpha
 
+    def _update_trail(self, dt: float) -> None:
+        if self.player.flip > 0:
+            # 잔상은 세계와 함께 왼쪽으로 흘러가야 앞으로 날아가는 느낌이 난다
+            self.trail = deque(((t, x - self.speed * dt, y, a) for t, x, y, a in self.trail), maxlen=8)
+            self.trail.append((self.player.texture, self.player.center_x, self.player.center_y, self.player.angle))
+        else:
+            self.trail.clear()
+        for i, ghost in enumerate(self.ghosts):
+            back = 2 * i + 2
+            ghost.visible = len(self.trail) >= back
+            if ghost.visible:
+                ghost.texture, ghost.center_x, ghost.center_y, ghost.angle = self.trail[-back]
+
     def _update_shake(self, dt: float) -> None:
         if self.shake_time > 0:
             self.shake_time -= dt
@@ -220,6 +244,7 @@ class GameView(arcade.View):
             draw_ground(self.scroll, self.world.gap_shapes())
             self.world.draw()
             self.server_list.draw(pixelated=True)
+            self.ghosts.draw(pixelated=True)
             self.player_list.draw(pixelated=True)
             self.effects.draw()
             if self.window.debug:
