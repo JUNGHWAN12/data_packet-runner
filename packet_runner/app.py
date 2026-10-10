@@ -4,6 +4,7 @@ import arcade
 
 from . import assets
 from . import config as C
+from .ranking import Ranking
 
 
 def _window_size() -> tuple[int, int]:
@@ -21,6 +22,7 @@ class GameWindow(arcade.Window):
         super().__init__(*_window_size(), C.TITLE, fullscreen=fullscreen, resizable=True)
         self.autoplay = autoplay
         self.debug = False
+        self.ranking = Ranking(C.RANKING_PATH)
         assets.load_font()
         self.camera = arcade.Camera2D(
             position=(C.SCREEN_W / 2, C.SCREEN_H / 2),

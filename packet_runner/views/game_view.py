@@ -49,7 +49,7 @@ class GameView(arcade.View):
         self.world = World(seed)
         self.background = Parallax()
         self.effects = Effects()
-        self.hud = Hud()
+        self.hud = Hud(self.window.ranking.best_today_score())
         self.score = ScoreBoard()
         self.autopilot = Autopilot() if self.window.autoplay else None
 
@@ -214,7 +214,7 @@ class GameView(arcade.View):
         self.effects.update(dt, 0)
         if self.arrival_t >= C.ARRIVAL_TIME:
             from .result_view import ResultView
-            self.window.show_view(ResultView(self.score))
+            self.window.show_view(ResultView(self.score, self.world.picker.seed))
 
     def _place_badge(self) -> None:
         bob = math.sin(self.t * 6) * 3

@@ -1,4 +1,4 @@
-"""시작 화면: 제목, 조작법, 장애물·아이템 안내."""
+"""시작 화면: 제목·조작법·장애물 안내와 오늘의 순위표를 번갈아 보여 준다."""
 
 import math
 
@@ -8,6 +8,7 @@ from .. import assets
 from .. import config as C
 from ..background import Parallax, draw_ground
 from ..player import PlayerBody, PlayerSprite
+from ..ranking_board import RankingBoard
 
 LEGEND = [
     ("congestion", "네트워크 혼잡", "점프", 0.65),
@@ -39,6 +40,14 @@ class TitleView(arcade.View):
                                     cx, 675, C.WHITE, 27, anchor_x="center")
         self.start = assets.text("Space를 눌러 시작", cx, 240, C.YELLOW, 36, anchor_x="center")
 
+        # 오늘의 순위표 (기록이 하나라도 있으면 안내 화면과 번갈아 보여 준다)
+        self.board = RankingBoard(top=960)
+        self._refresh_board()
+        # 운영자: F9를 누르고 있으면 오늘 순위 초기화
+        self.reset_hold: float | None = None
+        self.notice = assets.text("", cx, 60, (170, 190, 220), 21, anchor_x="center")
+        self.notice_time = 0.0
+
         self.legend_icons = arcade.SpriteList()
         self.legend_labels = []
         x0, step = 348, 245
@@ -50,13 +59,40 @@ class TitleView(arcade.View):
             self.legend_labels.append(assets.text(label, x, 450, C.WHITE, 20, anchor_x="center"))
             self.legend_labels.append(assets.text(action, x, 417, C.YELLOW, 20, anchor_x="center"))
 
+    def _refresh_board(self) -> None:
+        ranking = self.window.ranking
+        self.has_records = bool(ranking.records)
+        self.board.set_data(ranking.top_today(), None, ranking.best_all_time())
+
+    @property
+    def showing_board(self) -> bool:
+        return self.has_records and int(self.t // C.TITLE_SWAP_TIME) % 2 == 1
+
     def on_key_press(self, symbol: int, modifiers: int) -> None:
         if symbol in (arcade.key.SPACE, arcade.key.ENTER):
             from .game_view import GameView
             self.window.show_view(GameView())
+        elif symbol == arcade.key.F9:
+            self.reset_hold = 0.0
+
+    def on_key_release(self, symbol: int, modifiers: int) -> None:
+        if symbol == arcade.key.F9:
+            self.reset_hold = None
+            self.notice_time = 0.0
 
     def on_update(self, delta_time: float) -> None:
         self.t += delta_time
+        self.notice_time = max(0.0, self.notice_time - delta_time)
+        if self.reset_hold is not None:
+            self.reset_hold += delta_time
+            self.notice.text = f"오늘 순위 초기화: {C.RESET_HOLD - self.reset_hold:.0f}초 더 누르고 있으세요"
+            self.notice_time = 0.5
+            if self.reset_hold >= C.RESET_HOLD:
+                self.window.ranking.reset_today()
+                self._refresh_board()
+                self.reset_hold = None
+                self.notice.text = "오늘 순위를 초기화했습니다 (이전 파일은 data 폴더에 백업)"
+                self.notice_time = 4.0
         self.scroll += 180 * delta_time
         self.background.update(self.scroll)
         self.player.sync(self.body, delta_time, 390, 0)
@@ -68,13 +104,18 @@ class TitleView(arcade.View):
             arcade.draw_lrbt_rectangle_filled(0, C.SCREEN_W, 0, C.SCREEN_H, (5, 8, 20, 120))
             draw_ground(self.scroll)
             self.player_list.draw(pixelated=True)
-            arcade.draw_lrbt_rectangle_filled(225, 1695, 382, 592, (5, 8, 20, 190))
-            self.legend_icons.draw(pixelated=True)
-            for label in self.legend_labels:
-                label.draw()
-            self.title_glow.draw()
-            self.title.draw()
-            self.subtitle.draw()
-            self.controls.draw()
+            if self.showing_board:
+                self.board.draw()
+            else:
+                arcade.draw_lrbt_rectangle_filled(225, 1695, 382, 592, (5, 8, 20, 190))
+                self.legend_icons.draw(pixelated=True)
+                for label in self.legend_labels:
+                    label.draw()
+                self.title_glow.draw()
+                self.title.draw()
+                self.subtitle.draw()
+                self.controls.draw()
             if math.sin(self.t * 5) > -0.3:
                 self.start.draw()
+            if self.notice_time > 0:
+                self.notice.draw()

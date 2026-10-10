@@ -73,6 +73,22 @@ SPIKE_HIT_W = 66                 # 실제 충돌 폭 — 그림(상자 74px)보�
 GAP_TIME = 0.3                   # 바닥 틈 폭 = 속도 × GAP_TIME
 ZONE_REST = [1.6, 1.2, 1.0]      # 패턴 사이 쉬는 시간(초)
 
+# --- 로컬 랭킹 ---
+RANKING_PATH = ROOT / "data" / "ranking.json"
+RANKING_SIZE = 10            # 오늘의 TOP 10
+NAME_LEN = 3                 # 이름: 영문 대문자 3자
+NAME_TIME = 15.0             # 이름 입력 제한 시간 (키를 누르면 최소 3초는 더 기다림)
+SUMMARY_TIME = 8.0           # 결과 화면: 점수 요약을 보여 주는 시간
+BOARD_MIN_TIME = 15.0        # 결과 화면: 순위표를 최소한 보여 주는 시간
+TITLE_SWAP_TIME = 8.0        # 시작 화면: 안내 ↔ 오늘의 순위표 전환 간격
+RESET_HOLD = 3.0             # 시작 화면에서 F9를 이 시간 동안 누르면 오늘 순위 초기화 (운영자용)
+# 이름으로 쓸 수 없는 영문 3자 (부적절한 약어·욕설의 영문 표기). 선생님이 자유롭게 추가하면 된다.
+BANNED_NAMES = frozenset({
+    "ASS", "FUK", "FUC", "FCK", "FUQ", "SEX", "SXY", "CUM", "DIK", "DIC", "COK", "TIT", "FAG", "NIG",
+    "KKK", "WTF", "XXX", "KYS", "DIE", "PEE", "POO",
+    "SIB", "SIP", "SSB", "SBL", "BSN", "BYS", "GSK", "JOT", "MCN", "NGM",
+})
+
 # --- 색 ---
 CYAN = (94, 242, 255)
 RED = (255, 93, 115)
