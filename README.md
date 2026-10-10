@@ -155,7 +155,7 @@ python tools/build_assets.py
 
 - 캐릭터: **Animated Runner Character** — irmirx (CC0)
 - 슬라이딩 동작: 위 캐릭터를 바탕으로 팀이 **ChatGPT 이미지 생성 기능**으로 만든 그림 (AI 생성 이미지)
-- 2단 점프 공중제비: 위 캐릭터를 바탕으로 팀이 만든 그림
+- 2단 점프 공중제비: 위 캐릭터를 바탕으로 팀이 **ChatGPT 이미지 생성 기능**으로 만든 그림 (AI 생성 이미지)
 - 배경: **Warped City** — Luis Zuno / ansimuz (CC0)
 - 아이콘: **Lucide** (ISC)
 - 글꼴: **Galmuri11** — Lee Minseo (SIL OFL 1.1)
