@@ -41,7 +41,9 @@ class PlayerBody:
         self.down_held = False
 
     # --- 매 프레임 ---
-    def update(self, dt: float, ground_below: bool) -> None:
+    def update(self, dt: float, ground_below: bool, ceiling: bool = False, cloud_ahead: bool = False) -> None:
+        """ceiling: 머리 위에 오류 구름이 있어 지금 일어서면 부딪히는 상태.
+        cloud_ahead: 지금 점프하면 착지 전에 오류 구름에 닿는 상태."""
         self.double_jumped = False
         self.jump_buffer = max(0.0, self.jump_buffer - dt)
         self.coyote = C.COYOTE_TIME if self.on_ground else max(0.0, self.coyote - dt)
@@ -50,7 +52,9 @@ class PlayerBody:
             self.on_ground = False          # 바닥 틈으로 걸어 들어감
             self.pose = Pose.JUMP
 
-        if self.jump_buffer > 0 and (self.on_ground or self.coyote > 0):
+        # 구름 아래(또는 바로 앞)에서 슬라이딩 중이면 점프 입력은 구름을 지날 때까지 보류 (연타해도 부딪히지 않음)
+        stuck_under = (ceiling or cloud_ahead) and self.pose == Pose.SLIDE
+        if self.jump_buffer > 0 and (self.on_ground or self.coyote > 0) and not stuck_under:
             self.vy = C.JUMP_VELOCITY       # 슬라이딩 중에도 바로 점프
             self.on_ground = False
             self.coyote = self.jump_buffer = 0.0
@@ -64,17 +68,19 @@ class PlayerBody:
         if self.on_ground:
             if self.pose == Pose.SLIDE:
                 self.slide_time += dt
-                if not self.down_held and self.slide_time >= C.MIN_SLIDE:
-                    self.pose = Pose.RUN
+                if not self.down_held and self.slide_time >= C.MIN_SLIDE and not ceiling:
+                    self.pose = Pose.RUN        # 구름 아래에서는 ↓를 떼도 계속 미끄러짐
             elif self.down_held:
                 self._start_slide()
             return
 
         gravity = C.GRAVITY * (C.FAST_FALL if self.down_held else 1.0)
+        prev_feet = self.feet_y
         self.vy -= gravity * dt
         self.feet_y += self.vy * dt
-        # 바닥 높이 근처에서 내려오는 중이고 발밑에 바닥이 있으면 착지 (틈 가장자리는 조금 너그럽게)
-        if self.vy <= 0 and ground_below and C.GROUND_Y - 20 < self.feet_y <= C.GROUND_Y:
+        # 이번 프레임에 바닥 높이를 위에서 지나쳤으면 착지 (빨리 떨어질 때 한 프레임에 수십 px씩 내려와도
+        # 바닥을 뚫지 않도록). 틈 가장자리는 20px까지 너그럽게 봐준다.
+        if self.vy <= 0 and ground_below and prev_feet > C.GROUND_Y - 20 and self.feet_y <= C.GROUND_Y:
             self.feet_y = float(C.GROUND_Y)
             self.vy = 0.0
             self.on_ground = True
@@ -124,6 +130,7 @@ class PlayerSprite(arcade.Sprite):
         self.frames = {n: arcade.load_texture(folder / f"{n}.png") for n in names}
         super().__init__(self.frames["run_0"], scale=C.CHAR_SCALE)
         self.anim_time = 0.0
+        self.run_phase = 0.0      # 달리기 프레임 진행도 (속도에 맞춰 조금씩 쌓는다)
         self.prev_pose = Pose.RUN
         self.slide_out = 0.0
         self.center_x = C.PLAYER_X
@@ -149,8 +156,10 @@ class PlayerSprite(arcade.Sprite):
                 name = "slide_out_0" if self.slide_out > self.SLIDE_OUT / 2 else "slide_out_1"
                 self.slide_out -= dt
             else:
-                fps = 12 * speed / 450
-                name = self.RUN_FRAMES[int(self.anim_time * fps) % len(self.RUN_FRAMES)]
+                # 속도가 바뀌어도(충돌 감속 후 회복 등) 프레임이 튀지 않도록 진행도를 누적한다.
+                # anim_time × fps로 계산하면 fps가 변할 때 프레임이 순식간에 여러 장 넘어간다.
+                self.run_phase += dt * 12 * speed / 450
+                name = self.RUN_FRAMES[int(self.run_phase) % len(self.RUN_FRAMES)]
         self.prev_pose = body.pose
         self.texture = self.frames[name]
         self.center_x = C.PLAYER_X

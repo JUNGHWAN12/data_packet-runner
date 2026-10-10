@@ -41,12 +41,18 @@ class Obstacle(arcade.Sprite):
         else:
             self.center_y = C.GROUND_Y + C.CLOUD_TOP + 8 - t + self.height / 2  # 구름 위 끝 = 판정 위쪽
 
-    def rect(self) -> arcade.Rect:
+    def rects(self) -> list:
+        """충돌 판정 사각형들. 그림보다 조금 안쪽으로 잡는다."""
+        cx = self.left_x + self.box_w / 2
         if self.kind == P.CONGESTION:
-            return arcade.LBWH(self.left_x, C.GROUND_Y, self.box_w, C.CONGESTION_BOX[1])
+            return [arcade.LBWH(cx - hw, C.GROUND_Y + lo, hw * 2, hi - lo) for lo, hi, hw in C.CONGESTION_TIERS]
         if self.kind == P.SPIKE:
-            return arcade.LBWH(self.left_x, C.GROUND_Y, self.box_w, C.SPIKE_BOX[1])
-        return arcade.LBWH(self.left_x, C.GROUND_Y + C.CLOUD_BOTTOM, self.box_w, C.CLOUD_TOP - C.CLOUD_BOTTOM)
+            return [arcade.LBWH(cx - C.SPIKE_HIT_W / 2, C.GROUND_Y, C.SPIKE_HIT_W, C.SPIKE_BOX[1] - 6)]
+        return [arcade.LBWH(cx - C.CLOUD_HIT_W / 2, C.GROUND_Y + C.CLOUD_BOTTOM, C.CLOUD_HIT_W,
+                            C.CLOUD_TOP - C.CLOUD_BOTTOM)]
+
+    def hits(self, box: arcade.Rect) -> bool:
+        return any(box.overlaps(r) for r in self.rects())
 
 
 class Item(arcade.Sprite):
@@ -160,6 +166,12 @@ class World:
                 return False
         return True
 
+    def ceiling(self, x: float = C.PLAYER_X, ahead: float = 0.0) -> bool:
+        """지금 일어서면(ahead > 0이면 앞으로 ahead px 안에서) 오류 구름에 닿는지."""
+        w, h = C.STAND_BOX
+        stand = arcade.LBWH(x - w / 2 - 4, C.GROUND_Y, w + 8 + ahead, h)
+        return any(o.kind == P.CLOUD and o.hits(stand) for o in self.obstacles)
+
     def gap_under(self, x: float = C.PLAYER_X) -> Gap | None:
         for gap in self.gaps:
             if gap.left_x - 30 <= x <= gap.right_x + 30:
@@ -177,10 +189,13 @@ class World:
                 continue
             bottom = C.GROUND_Y + C.CLOUD_BOTTOM
             top = C.GROUND_Y + C.CLOUD_TOP - 135
-            arcade.draw_lrbt_rectangle_filled(o.left_x, o.right_x, bottom, top, (*C.RED, 45))
-            arcade.draw_lrbt_rectangle_filled(o.left_x, o.right_x, bottom, bottom + 4, C.RED)
+            cx, half = o.center_x, C.CLOUD_HIT_W / 2
+            # 바깥은 옅은 빛, 실제 충돌 폭만 진하게 칠해 그림과 판정을 맞춘다
+            arcade.draw_lrbt_rectangle_filled(o.left_x, o.right_x, bottom, top, (*C.RED, 18))
+            arcade.draw_lrbt_rectangle_filled(cx - half, cx + half, bottom, top, (*C.RED, 50))
+            arcade.draw_lrbt_rectangle_filled(cx - half, cx + half, bottom, bottom + 4, C.RED)
             for k in range(2):
-                x = o.left_x + o.box_w * (0.3 + 0.4 * k)
+                x = cx - half + C.CLOUD_HIT_W * (0.3 + 0.4 * k)
                 points = []
                 y = top
                 while y > bottom:

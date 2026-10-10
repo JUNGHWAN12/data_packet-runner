@@ -32,6 +32,20 @@ def test_congestion_can_be_jumped():
     assert P.JUMP_APEX > C.CONGESTION_BOX[1] * 2
 
 
+def test_congestion_hitbox_follows_cone_and_stays_inside_footprint():
+    tiers = C.CONGESTION_TIERS
+    widths = [hw for _, _, hw in tiers]
+    assert widths == sorted(widths, reverse=True)           # 위로 갈수록 좁아짐
+    assert all(hw * 2 <= C.CONGESTION_BOX[0] for hw in widths)
+    assert tiers[-1][1] <= C.CONGESTION_BOX[1]
+    assert all(a[1] == b[0] for a, b in zip(tiers, tiers[1:]))   # 단 사이에 빈틈 없음
+
+
+def test_hitboxes_are_narrower_than_pictures():
+    assert C.CLOUD_HIT_W < C.CLOUD_W
+    assert C.SPIKE_HIT_W < C.SPIKE_BOX[0] - 6
+
+
 def test_gap_can_be_jumped():
     for _, speed in C.SPEED_KEYS:
         gap_px = P.width_of(P.GAP, speed)
@@ -69,7 +83,7 @@ def _double_jump_peak(tap_delay: float) -> float:
 
 
 def test_spike_needs_double_jump():
-    assert P.JUMP_APEX < C.SPIKE_BOX[1]                     # 한 번 점프로는 못 넘음
+    assert P.JUMP_APEX < C.SPIKE_BOX[1] - 6                 # 한 번 점프로는 못 넘음 (충돌 높이 기준)
     for tap in (0.1, 0.2, 0.3, 0.4, 0.5, 0.6):               # 두 번째 Space를 언제 눌러도 넘을 수 있음
         assert _double_jump_peak(tap) > C.SPIKE_BOX[1]
 

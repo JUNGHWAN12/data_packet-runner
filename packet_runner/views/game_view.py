@@ -100,7 +100,9 @@ class GameView(arcade.View):
         if self.autopilot:
             self.autopilot.control(self.body, self.world, self.speed)
         ground = self.world.ground_below()
-        self.body.update(dt, ground)
+        # 점프하면 착지할 때까지 앞으로 나아가는 거리 안에 구름이 있으면, 슬라이딩 중 점프를 보류한다
+        cloud_ahead = self.world.ceiling(ahead=self.speed * P.AIR_TIME)
+        self.body.update(dt, ground, self.world.ceiling(), cloud_ahead)
         if self.body.double_jumped:
             self.effects.burst(C.PLAYER_X, self.body.feet_y, C.CYAN, 16, 300, 4)
         if self.body.fell(ground):
@@ -126,7 +128,7 @@ class GameView(arcade.View):
     def _check_collisions(self) -> None:
         box = self.body.rect()
         for o in self.world.obstacles:
-            if not o.hit and self.invincible <= 0 and box.overlaps(o.rect()):
+            if not o.hit and self.invincible <= 0 and o.hits(box):
                 o.hit = True
                 self._on_hit(o.center_x, self.body.feet_y + 60)
             if not o.passed and o.right_x < C.PLAYER_X - box.width / 2:
@@ -233,6 +235,7 @@ class GameView(arcade.View):
     def _draw_debug(self) -> None:
         arcade.draw_rect_outline(self.body.rect(), arcade.color.YELLOW, 3)
         for o in self.world.obstacles:
-            arcade.draw_rect_outline(o.rect(), arcade.color.RED, 3)
+            for r in o.rects():
+                arcade.draw_rect_outline(r, arcade.color.RED, 3)
         for i in self.world.items:
             arcade.draw_rect_outline(i.rect(), arcade.color.GREEN, 2)

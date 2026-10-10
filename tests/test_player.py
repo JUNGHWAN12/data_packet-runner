@@ -132,3 +132,39 @@ def test_walking_off_edge_allows_rescue_jump():
     body.press_jump()
     body.update(DT, False)
     assert body.vy > 0                         # 공중 점프로 살아날 수 있음
+
+
+def test_cannot_jump_or_stand_up_under_cloud():
+    body = PlayerBody()
+    body.press_down()
+    body.update(DT, True)
+    for _ in range(int(0.5 / DT)):             # 구름 아래에서 점프 연타 + ↓ 뗌
+        body.release_down()
+        body.press_jump()
+        body.update(DT, True, ceiling=True)
+        assert body.pose == Pose.SLIDE and body.on_ground
+        assert body.rect().height == C.SLIDE_BOX[1]
+    body.press_jump()
+    body.update(DT, True, ceiling=False)       # 구름을 벗어나면 보류된 점프 실행
+    assert body.pose == Pose.JUMP and body.vy > 0
+
+
+@pytest.mark.parametrize("dt", [1 / 120, 1 / 60, 1 / 30])
+def test_fast_fall_never_tunnels_through_ground(dt):
+    """슬라이딩(↓ 누름) 중 점프 연타 → 2단 점프 + 빨리 떨어지기여도 바닥을 뚫지 않는다."""
+    body = PlayerBody()
+    body.press_down()
+    for _ in range(int(6 / dt)):
+        body.press_jump()                      # 연타
+        body.update(dt, True)
+        assert not body.fell(True)
+        assert body.feet_y >= C.GROUND_Y
+
+
+def test_jump_is_held_while_cloud_is_just_ahead():
+    body = PlayerBody()
+    body.press_down()
+    body.update(DT, True)
+    body.press_jump()
+    body.update(DT, True, ceiling=False, cloud_ahead=True)
+    assert body.pose == Pose.SLIDE             # 바로 앞 구름에 뛰어들지 않음
