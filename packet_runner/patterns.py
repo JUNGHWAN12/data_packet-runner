@@ -12,16 +12,22 @@ from . import config as C
 CONGESTION = "congestion"   # 네트워크 혼잡 구간 — 점프
 CLOUD = "cloud"             # 통신 오류 구름 — 슬라이딩
 GAP = "gap"                 # 연결 단절 구간(바닥 틈) — 점프
+SPIKE = "spike"             # 트래픽 폭주(높이 쌓인 패킷 탑) — 2단 점프
 
-ACTION = {CONGESTION: "jump", GAP: "jump", CLOUD: "slide"}
+ACTION = {CONGESTION: "jump", GAP: "jump", CLOUD: "slide", SPIKE: "double"}
 
 # 앞 장애물이 끝난 뒤 다음 장애물이 시작될 때까지 필요한 최소 시간(초)
-# (점프 체공 0.77초, 반응 여유 약 0.3초를 기준으로 계산)
+# (점프 체공 0.77초, 2단 점프 체공 약 1.2초, 반응 여유 약 0.3초를 기준으로 계산)
 MIN_SPACING = {
     ("jump", "jump"): 0.95,
     ("jump", "slide"): 0.85,
+    ("jump", "double"): 1.15,
     ("slide", "jump"): 0.75,
     ("slide", "slide"): 0.3,
+    ("slide", "double"): 0.95,
+    ("double", "jump"): 1.3,
+    ("double", "slide"): 1.0,
+    ("double", "double"): 1.35,
 }
 
 JUMP_APEX = C.JUMP_VELOCITY ** 2 / (2 * C.GRAVITY)
@@ -43,9 +49,13 @@ PATTERNS = [
     Pattern("congestion_cloud", ((CONGESTION, 0.0), (CLOUD, 1.05)), 1),
     Pattern("gap_congestion", ((GAP, 0.0), (CONGESTION, 1.3)), 1),
     Pattern("cloud_congestion", ((CLOUD, 0.0), (CONGESTION, 1.05)), 1),
+    Pattern("spike", ((SPIKE, 0.0),), 1),
+    Pattern("congestion_spike", ((CONGESTION, 0.0), (SPIKE, 1.35)), 1),
     Pattern("cloud_tunnel", ((CLOUD, 0.0), (CLOUD, 0.6)), 2),
     Pattern("gap_gap", ((GAP, 0.0), (GAP, 1.3)), 2),
     Pattern("gauntlet", ((CONGESTION, 0.0), (GAP, 1.15), (CLOUD, 2.5)), 2),
+    Pattern("spike_cloud", ((SPIKE, 0.0), (CLOUD, 1.2)), 2),
+    Pattern("gap_spike", ((GAP, 0.0), (SPIKE, 1.5)), 2),
 ]
 
 
@@ -72,6 +82,8 @@ def width_of(kind: str, speed: float) -> float:
         return C.CONGESTION_BOX[0]
     if kind == CLOUD:
         return C.CLOUD_W
+    if kind == SPIKE:
+        return C.SPIKE_BOX[0]
     return speed * C.GAP_TIME
 
 
@@ -82,6 +94,12 @@ def duration_of(kind: str, speed: float) -> float:
 def pattern_duration(pattern: Pattern, speed: float) -> float:
     kind, start = pattern.items[-1]
     return start + duration_of(kind, speed)
+
+
+def rest_after(pattern: Pattern, zone_rest: float) -> float:
+    """패턴 뒤 쉬는 시간. 다음 패턴이 무엇으로 시작해도 피할 수 있도록 마지막 장애물 기준으로 늘린다."""
+    last = ACTION[pattern.items[-1][0]]
+    return max(zone_rest, max(v for (a, _), v in MIN_SPACING.items() if a == last))
 
 
 def jump_arc_height(dt: float) -> float:
@@ -105,7 +123,11 @@ def layout(pattern: Pattern, speed: float, rest: float) -> tuple[list, float]:
         w = width_of(kind, speed)
         spawns.append(Spawn(kind, x, width=w))
         center = x + w / 2
-        if ACTION[kind] == "jump":
+        if ACTION[kind] == "double":
+            # 2단 점프로만 닿는 높이에 놓아 보너스처럼 보이게 한다
+            for dt, h in ((-0.15, C.SPIKE_BOX[1] + 40), (0.0, C.SPIKE_BOX[1] + 110), (0.15, C.SPIKE_BOX[1] + 40)):
+                spawns.append(Spawn("fragment", center + dt * speed, C.GROUND_Y + 57 + h))
+        elif ACTION[kind] == "jump":
             # 점프 궤적을 따라 데이터 조각을 놓아 '언제 뛰어야 하는지' 보여 준다
             for dt in (-0.18, 0.0, 0.18):
                 spawns.append(Spawn("fragment", center + dt * speed, C.GROUND_Y + 57 + jump_arc_height(dt)))
@@ -117,7 +139,7 @@ def layout(pattern: Pattern, speed: float, rest: float) -> tuple[list, float]:
     for i in range(3):
         spawns.append(Spawn("fragment", end + (0.25 + 0.15 * i) * speed, C.GROUND_Y + 60))
     spawns.append(Spawn("token_slot", end + 0.75 * speed, C.GROUND_Y + 90))
-    return spawns, end + rest * speed
+    return spawns, end + rest_after(pattern, rest) * speed
 
 
 class PatternPicker:

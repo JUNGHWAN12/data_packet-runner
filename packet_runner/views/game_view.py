@@ -49,8 +49,8 @@ class GameView(arcade.View):
         self.arriving = False
         self.arrival_t = 0.0
 
-        self.hint = assets.text("Space 점프   ·   ↓ 누르고 있기 = 슬라이딩", C.SCREEN_W / 2, 810, C.WHITE, 30,
-                                anchor_x="center")
+        self.hint = assets.text("Space 점프   ·   공중에서 Space 한 번 더 = 2단 점프   ·   ↓ 누르고 있기 = 슬라이딩",
+                                C.SCREEN_W / 2, 810, C.WHITE, 27, anchor_x="center")
         self.banner = assets.text("", C.SCREEN_W / 2, 660, C.WHITE, 51, anchor_x="center")
         self.banner_sub = assets.text("", C.SCREEN_W / 2, 600, C.CYAN, 24, anchor_x="center")
         self._set_banner()
@@ -71,7 +71,8 @@ class GameView(arcade.View):
     # --- 진행 ---
     def _set_banner(self) -> None:
         self.banner.text = f"구간 {self.zone + 1} · {C.ZONES[self.zone][1]}"
-        self.banner_sub.text = ["낮은 속도로 점프와 슬라이딩을 익혀요", "속도가 빨라지고 장애물이 섞여요",
+        self.banner_sub.text = ["낮은 속도로 점프와 슬라이딩을 익혀요",
+                                "새 장애물 '트래픽 폭주'는 Space를 두 번 눌러 2단 점프로 넘어요",
                                 "서버가 가까워요! 끝까지 전달하세요"][self.zone]
         self.zone_banner = 2.5
 
@@ -100,6 +101,8 @@ class GameView(arcade.View):
             self.autopilot.control(self.body, self.world, self.speed)
         ground = self.world.ground_below()
         self.body.update(dt, ground)
+        if self.body.double_jumped:
+            self.effects.burst(C.PLAYER_X, self.body.feet_y, C.CYAN, 16, 300, 4)
         if self.body.fell(ground):
             self._on_fall()
 
@@ -221,7 +224,7 @@ class GameView(arcade.View):
                 self._draw_debug()
             self.hud.draw()
             if self.t < C.HINT_TIME:
-                arcade.draw_lrbt_rectangle_filled(480, 1440, 788, 863, (5, 8, 20, 190))
+                arcade.draw_lrbt_rectangle_filled(180, 1740, 788, 863, (5, 8, 20, 190))
                 self.hint.draw()
             if self.zone_banner > 0:
                 self.banner.draw()

@@ -15,8 +15,10 @@ SPAWN_X = C.SCREEN_W + 225   # 패턴이 처음 놓이는 화면 밖 x
 class Obstacle(arcade.Sprite):
     """혼잡 구간(바닥) 또는 오류 구름(공중). left_x/box_w가 판정 기준이고, 그림은 그 위치에 맞춰 놓인다."""
 
+    ICONS = {P.CONGESTION: "congestion", P.CLOUD: "error_cloud", P.SPIKE: "spike_warning"}
+
     def __init__(self, kind: str, left_x: float):
-        texture = assets.icon("congestion" if kind == P.CONGESTION else "error_cloud")
+        texture = assets.icon(self.ICONS[kind])
         super().__init__(texture)
         self.kind = kind
         self.left_x = left_x
@@ -34,12 +36,16 @@ class Obstacle(arcade.Sprite):
         self.center_x = self.left_x + self.box_w / 2
         if self.kind == P.CONGESTION:
             self.center_y = C.GROUND_Y - b + self.height / 2          # 그림 아래 끝 = 바닥
+        elif self.kind == P.SPIKE:
+            self.center_y = C.GROUND_Y + C.SPIKE_BOX[1] + 12 - b + self.height / 2  # 탑 꼭대기 위 경고 표시
         else:
             self.center_y = C.GROUND_Y + C.CLOUD_TOP + 8 - t + self.height / 2  # 구름 위 끝 = 판정 위쪽
 
     def rect(self) -> arcade.Rect:
         if self.kind == P.CONGESTION:
             return arcade.LBWH(self.left_x, C.GROUND_Y, self.box_w, C.CONGESTION_BOX[1])
+        if self.kind == P.SPIKE:
+            return arcade.LBWH(self.left_x, C.GROUND_Y, self.box_w, C.SPIKE_BOX[1])
         return arcade.LBWH(self.left_x, C.GROUND_Y + C.CLOUD_BOTTOM, self.box_w, C.CLOUD_TOP - C.CLOUD_BOTTOM)
 
 
@@ -89,6 +95,7 @@ class World:
         self.spawning = True
         self.last_token_t = -99.0
         self.anim_t = 0.0
+        self.spike_label = assets.text("2단 점프!", 0, 0, (255, 159, 69), 21, anchor_x="center")
 
     # --- 생성 ---
     def _spawn_pattern(self, t: float, lost_pool: int, overshoot: float) -> None:
@@ -104,7 +111,7 @@ class World:
         origin = SPAWN_X - overshoot
         for s in spawns:
             x = origin + s.x
-            if s.kind in (P.CONGESTION, P.CLOUD):
+            if s.kind in (P.CONGESTION, P.CLOUD, P.SPIKE):
                 self.obstacles.append(Obstacle(s.kind, x))
             elif s.kind == P.GAP:
                 gap = Gap(x, s.width)
@@ -182,8 +189,26 @@ class World:
                 points.append((x, bottom))
                 arcade.draw_line_strip(points, (255, 170, 185), 3)
 
+    def draw_spikes(self) -> None:
+        """트래픽 폭주: 패킷 상자가 높이 쌓인 탑. 한 번 점프로는 못 넘는다."""
+        block = C.SPIKE_BOX[1] / 8
+        for o in self.obstacles:
+            if o.kind != P.SPIKE or o.right_x < -30 or o.left_x > C.SCREEN_W + 30:
+                continue
+            for i in range(8):
+                bottom = C.GROUND_Y + i * block
+                # 위로 갈수록 붉어지는 그래프 막대
+                color = (255, 160 - i * 12, 70 - i * 4)
+                arcade.draw_lrbt_rectangle_filled(o.left_x + 3, o.right_x - 3, bottom + 3, bottom + block - 3, (*color, 120))
+                arcade.draw_lrbt_rectangle_outline(o.left_x + 3, o.right_x - 3, bottom + 3, bottom + block - 3, color, 3)
+                arcade.draw_lrbt_rectangle_filled(o.left_x + 14, o.left_x + 34, bottom + 14, bottom + 20, color)
+            self.spike_label.x = o.center_x
+            self.spike_label.y = o.top + 14
+            self.spike_label.draw()
+
     def draw(self) -> None:
         self.signs.draw(pixelated=True)
         self.draw_error_fields()
+        self.draw_spikes()
         self.obstacles.draw(pixelated=True)
         self.items.draw(pixelated=True)

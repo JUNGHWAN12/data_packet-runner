@@ -13,6 +13,7 @@ LEGEND = [
     ("congestion", "네트워크 혼잡", "점프", 0.65),
     ("unplug", "연결 단절(틈)", "점프", 1.0),
     ("error_cloud", "통신 오류 구름", "슬라이딩", 0.42),
+    ("spike_warning", "트래픽 폭주", "2단 점프", 1.0),
     ("fragment", "데이터 조각", "+10점", 1.0),
     ("token", "재전송 토큰", "잃은 점수 복구", 1.0),
 ]
@@ -34,13 +35,13 @@ class TitleView(arcade.View):
         self.title = assets.text(C.TITLE, cx, 840, C.WHITE, 81, anchor_x="center")
         self.subtitle = assets.text("장애물을 넘어 데이터를 목적지 서버까지 전달하라!", cx, 758, C.CYAN, 27,
                                     anchor_x="center")
-        self.controls = assets.text("Space  점프        ↓ 누르고 있기  슬라이딩", cx, 675, C.WHITE, 27,
-                                    anchor_x="center")
+        self.controls = assets.text("Space 점프     공중에서 Space 한 번 더  2단 점프     ↓ 누르고 있기  슬라이딩",
+                                    cx, 675, C.WHITE, 27, anchor_x="center")
         self.start = assets.text("Space를 눌러 시작", cx, 240, C.YELLOW, 36, anchor_x="center")
 
         self.legend_icons = arcade.SpriteList()
         self.legend_labels = []
-        x0, step = 375, 292
+        x0, step = 348, 245
         for i, (name, label, action, scale) in enumerate(LEGEND):
             x = x0 + step * i
             sprite = arcade.Sprite(assets.icon(name), scale=scale)

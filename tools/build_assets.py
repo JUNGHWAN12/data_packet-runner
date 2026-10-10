@@ -48,6 +48,7 @@ ICONS = {
     # 이름: (Lucide 아이콘, 색상, 확대 배수)
     "congestion": ("traffic-cone", "#FFB347", 5),
     "error_cloud": ("cloud-lightning", "#FF5D73", 8),
+    "spike_warning": ("triangle-alert", "#FF9F45", 3),
     "unplug": ("unplug", "#FF5D73", 3),
     "fragment": ("binary", "#7DFF9A", 3),
     "token": ("refresh-cw", "#FFE066", 3),

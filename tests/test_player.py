@@ -92,3 +92,43 @@ def test_fall_into_gap_and_coyote_jump():
     assert falling.fell(False)
     falling.respawn()
     assert falling.on_ground and falling.feet_y == C.GROUND_Y
+
+
+def test_double_jump_once_per_air_time():
+    body = PlayerBody()
+    body.press_jump()
+    run(body, 0.3)
+    body.press_jump()
+    body.update(DT, True)
+    assert body.vy == pytest.approx(C.DOUBLE_JUMP_VELOCITY - C.GRAVITY * DT, rel=0.01)
+    run(body, 0.1)
+    vy_before = body.vy
+    body.press_jump()                          # 세 번째는 무시
+    body.update(DT, True)
+    assert body.vy < vy_before
+    while not body.on_ground:
+        body.update(DT, True)
+    assert body.air_jumps == 1                 # 착지하면 다시 쓸 수 있음
+
+
+def test_jump_press_right_before_landing_is_kept_for_ground_jump():
+    body = PlayerBody()
+    body.press_jump()
+    body.update(DT, True)
+    while body.vy > 0 or body.feet_y - C.GROUND_Y > 20:
+        body.update(DT, True)
+    body.press_jump()                          # 착지 직전 입력 → 2단 점프가 아니라 착지 후 점프
+    landed = False
+    for _ in range(int(0.1 / DT)):
+        body.update(DT, True)
+        landed = landed or body.vy > C.DOUBLE_JUMP_VELOCITY
+    assert landed                              # 땅에서 새로 뛴 속도
+    assert body.air_jumps == 1                 # 2단 점프는 아직 남아 있음
+
+
+def test_walking_off_edge_allows_rescue_jump():
+    body = PlayerBody()
+    run(body, 0.2, ground=False)               # 코요테 시간이 지난 뒤
+    body.press_jump()
+    body.update(DT, False)
+    assert body.vy > 0                         # 공중 점프로 살아날 수 있음

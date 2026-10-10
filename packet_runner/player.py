@@ -27,6 +27,8 @@ class PlayerBody:
         self.slide_time = 0.0
         self.coyote = 0.0
         self.jump_buffer = 0.0
+        self.air_jumps = 1            # 공중에서 쓸 수 있는 추가 점프 (착지하면 다시 1)
+        self.double_jumped = False    # 이번 프레임에 2단 점프했는지 (효과 표시용)
 
     # --- 입력 ---
     def press_jump(self) -> None:
@@ -40,6 +42,7 @@ class PlayerBody:
 
     # --- 매 프레임 ---
     def update(self, dt: float, ground_below: bool) -> None:
+        self.double_jumped = False
         self.jump_buffer = max(0.0, self.jump_buffer - dt)
         self.coyote = C.COYOTE_TIME if self.on_ground else max(0.0, self.coyote - dt)
 
@@ -52,6 +55,11 @@ class PlayerBody:
             self.on_ground = False
             self.coyote = self.jump_buffer = 0.0
             self.pose = Pose.JUMP
+        elif self.jump_buffer > 0 and not self.on_ground and self.air_jumps > 0 and not self._about_to_land(ground_below):
+            self.vy = C.DOUBLE_JUMP_VELOCITY  # 2단 점프 (착지 직전 입력은 착지 후 점프로 남겨 둔다)
+            self.air_jumps -= 1
+            self.jump_buffer = 0.0
+            self.double_jumped = True
 
         if self.on_ground:
             if self.pose == Pose.SLIDE:
@@ -70,10 +78,14 @@ class PlayerBody:
             self.feet_y = float(C.GROUND_Y)
             self.vy = 0.0
             self.on_ground = True
+            self.air_jumps = 1
             if self.down_held:
                 self._start_slide()
             else:
                 self.pose = Pose.RUN
+
+    def _about_to_land(self, ground_below: bool) -> bool:
+        return ground_below and self.vy < 0 and self.feet_y - C.GROUND_Y < 25
 
     def _start_slide(self) -> None:
         self.pose = Pose.SLIDE
@@ -89,6 +101,7 @@ class PlayerBody:
         self.feet_y = float(C.GROUND_Y)
         self.vy = 0.0
         self.on_ground = True
+        self.air_jumps = 1
         self.pose = Pose.SLIDE if self.down_held else Pose.RUN
         self.slide_time = 0.0
 

@@ -22,15 +22,10 @@ def test_pattern_spacing(pattern):
             assert gap >= need - 1e-9, f"{pattern.name}: {k1}->{k2} at {speed}px/s gap {gap:.2f}s < {need}s"
 
 
-def test_rest_between_patterns_is_enough():
-    assert min(C.ZONE_REST) >= max(P.MIN_SPACING.values())
-
-
 def test_cloud_forces_slide():
     slide_top = C.SLIDE_BOX[1]
     stand_top = C.STAND_BOX[1]
     assert slide_top < C.CLOUD_BOTTOM < stand_top           # 슬라이딩하면 통과, 서 있으면 충돌
-    assert P.JUMP_APEX + stand_top < C.CLOUD_TOP             # 점프로 넘을 수 없음
 
 
 def test_congestion_can_be_jumped():
@@ -65,3 +60,27 @@ def test_layout_items_follow_pattern_order():
     obstacles = [s for s in spawns if s.kind in (P.CONGESTION, P.GAP, P.CLOUD)]
     assert [s.kind for s in obstacles] == [k for k, _ in pattern.items]
     assert length > max(s.x for s in obstacles)
+
+
+def _double_jump_peak(tap_delay: float) -> float:
+    """첫 점프 후 tap_delay초에 2단 점프했을 때 발의 최고 높이."""
+    h = C.JUMP_VELOCITY * tap_delay - 0.5 * C.GRAVITY * tap_delay ** 2
+    return h + C.DOUBLE_JUMP_VELOCITY ** 2 / (2 * C.GRAVITY)
+
+
+def test_spike_needs_double_jump():
+    assert P.JUMP_APEX < C.SPIKE_BOX[1]                     # 한 번 점프로는 못 넘음
+    for tap in (0.1, 0.2, 0.3, 0.4, 0.5, 0.6):               # 두 번째 Space를 언제 눌러도 넘을 수 있음
+        assert _double_jump_peak(tap) > C.SPIKE_BOX[1]
+
+
+def test_cloud_cannot_be_double_jumped():
+    highest_feet = max(_double_jump_peak(t / 100) for t in range(1, 77))
+    assert highest_feet + C.STAND_BOX[1] < C.CLOUD_TOP
+
+
+def test_rest_after_covers_any_next_pattern():
+    for pattern in P.PATTERNS:
+        last = P.ACTION[pattern.items[-1][0]]
+        for first in {P.ACTION[p.items[0][0]] for p in P.PATTERNS}:
+            assert P.rest_after(pattern, min(C.ZONE_REST)) >= P.MIN_SPACING[(last, first)]
