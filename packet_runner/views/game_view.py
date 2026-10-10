@@ -30,11 +30,17 @@ class GameView(arcade.View):
         self.trail: deque = deque(maxlen=8)
         self.ghosts = arcade.SpriteList()
         for alpha in (120, 75, 40):
-            ghost = arcade.Sprite(self.player.frames["flip"], scale=C.CHAR_SCALE)
+            ghost = arcade.Sprite(self.player.frames["flip_tuck_b"], scale=C.CHAR_SCALE)
             ghost.color = C.CYAN
             ghost.alpha = alpha
             ghost.visible = False
             self.ghosts.append(ghost)
+        # 2단 점프한 자리에 잠깐 남는 발밑 폭발
+        self.burst = arcade.Sprite(C.GENERATED / "runner" / "dj_burst.png", scale=C.CHAR_SCALE)
+        self.burst.visible = False
+        self.burst_life = 0.0
+        self.fx_list = arcade.SpriteList()
+        self.fx_list.append(self.burst)
         self.server = arcade.Sprite(assets.icon("server"))
         self.server.visible = False
         self.server_list = arcade.SpriteList()
@@ -114,7 +120,10 @@ class GameView(arcade.View):
         cloud_ahead = self.world.ceiling(ahead=self.speed * P.AIR_TIME)
         self.body.update(dt, ground, self.world.ceiling(), cloud_ahead)
         if self.body.double_jumped:
-            self.effects.burst(C.PLAYER_X, self.body.feet_y, C.CYAN, 16, 300, 4)
+            self.effects.burst(C.PLAYER_X, self.body.feet_y, C.CYAN, 8, 300, 3)
+            self.burst_life = 0.25
+            self.burst.center_x = C.PLAYER_X
+            self.burst.center_y = self.body.feet_y + 6 - self.burst.height / 2
         if self.body.fell(ground):
             self._on_fall()
 
@@ -214,6 +223,11 @@ class GameView(arcade.View):
         self.badge.alpha = self.player.alpha
 
     def _update_trail(self, dt: float) -> None:
+        self.burst.visible = self.burst_life > 0
+        if self.burst_life > 0:
+            self.burst_life -= dt
+            self.burst.center_x -= self.speed * dt
+            self.burst.alpha = int(255 * max(0.0, self.burst_life) / 0.25)
         if self.player.flip > 0:
             # 잔상은 세계와 함께 왼쪽으로 흘러가야 앞으로 날아가는 느낌이 난다
             self.trail = deque(((t, x - self.speed * dt, y, a) for t, x, y, a in self.trail), maxlen=8)
@@ -244,6 +258,7 @@ class GameView(arcade.View):
             draw_ground(self.scroll, self.world.gap_shapes())
             self.world.draw()
             self.server_list.draw(pixelated=True)
+            self.fx_list.draw(pixelated=True)
             self.ghosts.draw(pixelated=True)
             self.player_list.draw(pixelated=True)
             self.effects.draw()

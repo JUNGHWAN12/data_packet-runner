@@ -5,6 +5,7 @@
 - 러너 시트: 프레임을 잘라 같은 크기 캔버스에 발 위치·머리 위치를 맞춰 저장한다.
 - 슬라이딩 시트: 크게 그려진 슬라이딩 동작을 원본 러너 크기로 줄이고, 먼지를 지우고,
   가장자리를 선명하게 정리해 같은 캔버스에 맞춘다.
+- 2단 점프 시트: 박차기·공중제비·마무리 프레임을 같은 방식으로 줄이고, 발밑 폭발은 따로 떼어 효과로 저장한다.
 - Warped City 배경: 학교 부스에 맞지 않는 'BAR' 간판 글자를 'NET'으로 바꾼다.
 - Lucide 아이콘: 24px로 래스터화 → 픽셀 정리 → 정수 배 확대 → 네온 발광.
   (cairosvg가 필요하다. 없으면 아이콘 단계만 건너뛴다.)
@@ -41,7 +42,15 @@ SLIDE_FRAMES = [
     ("slide_out_1", 6, "head"),   # 다시 달리기 자세
 ]
 SLIDE_SCALE = 0.44   # 슬라이딩 시트 → 원본 러너 크기 (머리 크기가 같아지는 배율)
-FLIP_FROM = "slide_out_1"   # 2단 점프 공중제비에 쓰는 웅크린 자세 (가운데 정렬해 제자리에서 돌린다)
+# 2단 점프 시트(runner_flip_sheet.png)는 8프레임: 달리기 → 점프 → 박차기 → 뒤집힘 2 → 마무리 → 착지 2.
+# (이름, 시트에서의 순서, 정렬) — "feet"는 발을 캔버스 아래에, "center"는 제자리 회전용으로 가운데에 둔다
+FLIP_FRAMES = [
+    ("flip_kick", 2, "feet"),     # 무릎을 당기며 박차고 오름 (발밑 폭발은 따로 뗌)
+    ("flip_tuck_a", 4, "center"), # 웅크려 앞으로 135° 돈 자세
+    ("flip_tuck_b", 3, "center"), # 웅크려 180° 뒤집힌 자세
+    ("flip_out", 5, "feet"),      # 다리를 내리며 마무리
+]
+FLIP_SCALE = 0.37   # 2단 점프 시트 → 원본 러너 크기 (헬멧 폭이 슬라이딩 시트와 같아지는 배율)
 CANVAS = (120, 100)  # 모든 러너 프레임 공통 캔버스 (발 = 맨 아래 줄)
 HEAD_ROWS = 35       # 머리 중심을 구할 때 보는 위쪽 줄 수
 
@@ -92,8 +101,8 @@ def build_runner() -> None:
     print(f"runner: {len(RUNNER_FRAMES)} frames -> {out}")
 
 
-def _frame_columns(img: Image.Image) -> list:
-    """투명한 세로줄로 나뉜 프레임들의 (왼쪽, 오른쪽) x 범위."""
+def _frame_columns(img: Image.Image, merge_gap: int = 0) -> list:
+    """투명한 세로줄로 나뉜 프레임들의 (왼쪽, 오른쪽) x 범위. merge_gap보다 좁은 틈은 같은 프레임으로 본다."""
     alpha = img.getchannel("A").point(lambda a: 255 if a >= 128 else 0)
     filled = [alpha.crop((x, 0, x + 1, img.height)).getbbox() is not None for x in range(img.width)]
     columns, start = [], None
@@ -101,7 +110,10 @@ def _frame_columns(img: Image.Image) -> list:
         if on and start is None:
             start = x
         elif not on and start is not None:
-            columns.append((start, x))
+            if columns and start - columns[-1][1] < merge_gap:
+                columns[-1] = (columns[-1][0], x)    # 프레임 옆 작은 불꽃은 같은 프레임에 붙인다
+            else:
+                columns.append((start, x))
             start = None
     return columns
 
@@ -131,12 +143,58 @@ def build_slide() -> None:
         frame = _trim(frame)
         center = _head_center_x(frame) if align == "head" else frame.width / 2
         _place(frame, center).save(out / f"{name}.png")
-        if name == FLIP_FROM:
+    print(f"slide: {len(SLIDE_FRAMES)} frames -> {out}")
+
+
+def _shrink(frame: Image.Image, scale: float) -> Image.Image:
+    frame = frame.resize((round(frame.width * scale), round(frame.height * scale)), Image.LANCZOS)
+    frame.putalpha(frame.getchannel("A").point(lambda a: 255 if a >= 128 else 0))
+    return _trim(frame)
+
+
+def _split_effects(frame: Image.Image) -> tuple:
+    """캐릭터와 주변 효과(폭발·불꽃)를 나눈다. (캐릭터, 효과, 발 아래 끝 y)
+    캐릭터에는 검은 외곽선이 있고 효과에는 없으므로, 검은 외곽선이 차지하는 영역 밖은 효과로 본다."""
+    pixels = frame.load()
+    xs, ys = [], []
+    for y in range(frame.height):
+        for x in range(frame.width):
+            r, g, b, a = pixels[x, y]
+            if a >= 128 and r < 70 and g < 70 and b < 70:
+                xs.append(x)
+                ys.append(y)
+    x0, x1, y0, y1 = min(xs) - 2, max(xs) + 2, min(ys) - 2, max(ys) + 2
+    character = frame.copy()
+    effect = Image.new("RGBA", frame.size, (0, 0, 0, 0))
+    char_px, fx_px = character.load(), effect.load()
+    for y in range(frame.height):
+        for x in range(frame.width):
+            if pixels[x, y][3] and not (x0 <= x <= x1 and y0 <= y <= y1):
+                fx_px[x, y] = pixels[x, y]
+                char_px[x, y] = (0, 0, 0, 0)
+    return _trim(character), effect, y1
+
+
+def build_flip() -> None:
+    sheet = Image.open(SRC / "runner_flip_sheet.png").convert("RGBA")
+    columns = _frame_columns(sheet, merge_gap=20)
+    out = OUT / "runner"
+    for name, index, align in FLIP_FRAMES:
+        left, right = columns[index]
+        frame, effect, feet = _split_effects(_trim(sheet.crop((left, 0, right, sheet.height))))
+        if name == "flip_kick":
+            # 발밑 폭발만 캐릭터와 같은 배율로 줄여 따로 저장 (게임에서 2단 점프한 자리에 잠깐 보여 준다)
+            burst = effect.crop((0, feet - 10, effect.width, effect.height))
+            _shrink(burst, FLIP_SCALE).save(out / "dj_burst.png")
+        frame = _shrink(frame, FLIP_SCALE)
+        if align == "center":
             side = max(frame.size) + 4
-            flip = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-            flip.alpha_composite(frame, ((side - frame.width) // 2, (side - frame.height) // 2))
-            flip.save(out / "flip.png")
-    print(f"slide: {len(SLIDE_FRAMES)} frames + flip -> {out}")
+            canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+            canvas.alpha_composite(frame, ((side - frame.width) // 2, (side - frame.height) // 2))
+            canvas.save(out / f"{name}.png")
+        else:
+            _place(frame, _head_center_x(frame)).save(out / f"{name}.png")
+    print(f"flip: {len(FLIP_FRAMES)} frames + burst -> {out}")
 
 
 # 'NET' 글자 (3x6 픽셀)
@@ -207,5 +265,6 @@ def build_icons() -> None:
 if __name__ == "__main__":
     build_runner()
     build_slide()
+    build_flip()
     build_background()
     build_icons()

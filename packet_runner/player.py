@@ -8,6 +8,7 @@ from enum import Enum, auto
 
 import arcade
 
+from . import assets
 from . import config as C
 
 
@@ -123,13 +124,21 @@ class PlayerSprite(arcade.Sprite):
     SLIDE_FRAMES = ["slide_in", "slide_0", "slide_1", "slide_out_0", "slide_out_1"]
     SLIDE_IN = (0.05, 0.11)   # slide_in → slide_0 → slide_1(유지)로 넘어가는 시각
     SLIDE_OUT = 0.12          # 일어서는 동작 시간 (slide_out_0 → slide_out_1)
-    FLIP_TIME = 0.45          # 2단 점프 공중제비 한 바퀴 시간
+    # 2단 점프: 박차기 → 웅크려 앞으로 한 바퀴 → 다리 내리며 마무리
+    FLIP_KICK, FLIP_SPIN, FLIP_OUT = 0.07, 0.34, 0.10
+    FLIP_TIME = FLIP_KICK + FLIP_SPIN + FLIP_OUT
+    # 웅크린 프레임과 그 그림이 이미 돌아가 있는 각도. 부족한 각도만 코드로 돌려 한 바퀴를 매끄럽게 잇는다.
+    FLIP_TUCKS = (("flip_tuck_a", 135), ("flip_tuck_b", 180))
+    FLIP_FRAMES = ["flip_kick", "flip_tuck_a", "flip_tuck_b", "flip_out"]
 
     def __init__(self):
         folder = C.GENERATED / "runner"
-        names = self.RUN_FRAMES + ["jump_up", "jump_down", "flip"] + self.SLIDE_FRAMES
+        names = self.RUN_FRAMES + ["jump_up", "jump_down"] + self.SLIDE_FRAMES + self.FLIP_FRAMES
         self.frames = {n: arcade.load_texture(folder / f"{n}.png") for n in names}
         super().__init__(self.frames["run_0"], scale=C.CHAR_SCALE)
+        # 웅크린 프레임(가운데 정렬)을 놓을 높이 = 박차기 자세의 몸 중심
+        _, bottom, _, top = assets.content_box(self.frames["flip_kick"])
+        self.body_center = (bottom + top) / 2 * C.CHAR_SCALE
         self.anim_time = 0.0
         self.run_phase = 0.0      # 달리기 프레임 진행도 (속도에 맞춰 조금씩 쌓는다)
         self.prev_pose = Pose.RUN
@@ -141,14 +150,22 @@ class PlayerSprite(arcade.Sprite):
         self.anim_time += dt
         bob = 0
         angle = 0.0
+        centered = False
         if body.double_jumped:
             self.flip = self.FLIP_TIME
         if body.pose == Pose.JUMP and self.flip > 0:
-            # 앞으로 한 바퀴: 처음엔 빠르게, 끝에서 천천히 (ease-out)
             self.flip = max(0.0, self.flip - dt)
-            k = 1 - self.flip / self.FLIP_TIME
-            angle = 360 * (1 - (1 - k) ** 2) if self.flip > 0 else 0.0
-            name = "flip" if self.flip > 0 else "jump_down"
+            t = self.FLIP_TIME - self.flip
+            if t < self.FLIP_KICK:
+                name = "flip_kick"
+            elif t < self.FLIP_KICK + self.FLIP_SPIN:
+                k = (t - self.FLIP_KICK) / self.FLIP_SPIN
+                turn = 360 * (1 - (1 - k) ** 2)    # 앞으로 한 바퀴: 처음엔 빠르게, 끝에서 천천히
+                name, drawn = self.FLIP_TUCKS[0] if turn < 157.5 else self.FLIP_TUCKS[1]
+                angle = turn - drawn
+                centered = True
+            else:
+                name = "flip_out"
             self.slide_out = 0.0
         elif body.pose == Pose.JUMP:
             name = "jump_up" if body.vy > 0 else "jump_down"
@@ -178,6 +195,9 @@ class PlayerSprite(arcade.Sprite):
         self.texture = self.frames[name]
         self.angle = angle                          # Arcade 3: 시계 방향 = 오른쪽으로 달리는 캐릭터의 앞구르기
         self.center_x = C.PLAYER_X
-        self.center_y = round(body.feet_y + self.height / 2) + bob
+        if centered:
+            self.center_y = round(body.feet_y + self.body_center)   # 몸 중심을 축으로 제자리 회전
+        else:
+            self.center_y = round(body.feet_y + self.height / 2) + bob
         # 무적 시간에는 깜빡임
         self.alpha = 90 if invincible > 0 and int(invincible * 12) % 2 == 0 else 255
