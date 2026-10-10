@@ -2,8 +2,9 @@
 
     python tools/build_assets.py
 
-- 러너 시트: 프레임을 잘라 같은 크기 캔버스에 발 위치·머리 위치를 맞춰 저장하고,
-  JUMP DOWN 프레임을 회전해 슬라이딩 프레임을 만든다.
+- 러너 시트: 프레임을 잘라 같은 크기 캔버스에 발 위치·머리 위치를 맞춰 저장한다.
+- 슬라이딩 시트: 크게 그려진 슬라이딩 동작을 원본 러너 크기로 줄이고, 먼지를 지우고,
+  가장자리를 선명하게 정리해 같은 캔버스에 맞춘다.
 - Warped City 배경: 학교 부스에 맞지 않는 'BAR' 간판 글자를 'NET'으로 바꾼다.
 - Lucide 아이콘: 24px로 래스터화 → 픽셀 정리 → 정수 배 확대 → 네온 발광.
   (cairosvg가 필요하다. 없으면 아이콘 단계만 건너뛴다.)
@@ -30,8 +31,16 @@ RUNNER_FRAMES = {
     "jump_up": (25, 164, 70, 260),
     "jump_down": (96, 164, 157, 255),
 }
-# 슬라이딩: JUMP DOWN을 뒤로 젖히는 방향(반시계)으로 회전한 각도
-SLIDE_ANGLES = {"slide_0": 40, "slide_1": 75}
+# 슬라이딩 시트(runner_slide_sheet.webp)는 8프레임: 달리기 2 → 젖히기 → 눕기 2 → 일어서기 2 → 달리기.
+# 가운데 5프레임을 쓴다. (이름, 시트에서의 순서, 가운데 정렬 기준)
+SLIDE_FRAMES = [
+    ("slide_in", 2, "head"),      # 몸을 뒤로 젖히며 들어감
+    ("slide_0", 3, "box"),        # 눕기 시작
+    ("slide_1", 4, "box"),        # 완전히 누워 미끄러짐 (유지 동작)
+    ("slide_out_0", 5, "head"),   # 손 짚고 일어남
+    ("slide_out_1", 6, "head"),   # 다시 달리기 자세
+]
+SLIDE_SCALE = 0.44   # 슬라이딩 시트 → 원본 러너 크기 (머리 크기가 같아지는 배율)
 CANVAS = (120, 100)  # 모든 러너 프레임 공통 캔버스 (발 = 맨 아래 줄)
 HEAD_ROWS = 35       # 머리 중심을 구할 때 보는 위쪽 줄 수
 
@@ -78,11 +87,49 @@ def build_runner() -> None:
     for name in RUNNER_FRAMES:
         frame = _crop(sheet, name)
         _place(frame, _head_center_x(frame)).save(out / f"{name}.png")
-    jump_down = _crop(sheet, "jump_down")
-    for name, angle in SLIDE_ANGLES.items():
-        rotated = _trim(jump_down.rotate(angle, resample=Image.NEAREST, expand=True))
-        _place(rotated, rotated.width / 2).save(out / f"{name}.png")
-    print(f"runner: {len(RUNNER_FRAMES) + len(SLIDE_ANGLES)} frames -> {out}")
+    print(f"runner: {len(RUNNER_FRAMES)} frames -> {out}")
+
+
+def _frame_columns(img: Image.Image) -> list:
+    """투명한 세로줄로 나뉜 프레임들의 (왼쪽, 오른쪽) x 범위."""
+    alpha = img.getchannel("A").point(lambda a: 255 if a >= 128 else 0)
+    filled = [alpha.crop((x, 0, x + 1, img.height)).getbbox() is not None for x in range(img.width)]
+    columns, start = [], None
+    for x, on in enumerate(filled + [False]):
+        if on and start is None:
+            start = x
+        elif not on and start is not None:
+            columns.append((start, x))
+            start = None
+    return columns
+
+
+def _remove_dust(img: Image.Image) -> Image.Image:
+    """갈색 먼지 효과를 지운다 (게임에서는 코드로 불꽃 입자를 그린다)."""
+    pixels = img.load()
+    for y in range(img.height):
+        for x in range(img.width):
+            r, g, b, a = pixels[x, y]
+            if a and r - b >= 20 and r <= 185 and g <= 160:
+                pixels[x, y] = (0, 0, 0, 0)
+    return img
+
+
+def build_slide() -> None:
+    sheet = Image.open(SRC / "runner_slide_sheet.webp").convert("RGBA")
+    columns = _frame_columns(sheet)
+    out = OUT / "runner"
+    for name, index, align in SLIDE_FRAMES:
+        left, right = columns[index]
+        frame = _trim(_remove_dust(sheet.crop((left, 0, right, sheet.height))))
+        size = (round(frame.width * SLIDE_SCALE), round(frame.height * SLIDE_SCALE))
+        frame = frame.resize(size, Image.LANCZOS)
+        # 반투명 가장자리를 없애 원본 픽셀아트처럼 선명하게
+        frame.putalpha(frame.getchannel("A").point(lambda a: 255 if a >= 128 else 0))
+        frame = _trim(frame)
+        center = _head_center_x(frame) if align == "head" else frame.width / 2
+        _place(frame, center).save(out / f"{name}.png")
+    print(f"slide: {len(SLIDE_FRAMES)} frames -> {out}")
 
 
 # 'NET' 글자 (3x6 픽셀)
@@ -152,5 +199,6 @@ def build_icons() -> None:
 
 if __name__ == "__main__":
     build_runner()
+    build_slide()
     build_background()
     build_icons()

@@ -101,13 +101,18 @@ class PlayerSprite(arcade.Sprite):
     """PlayerBody 상태에 맞는 프레임을 보여 준다. 모든 프레임은 같은 캔버스, 발 = 맨 아래 줄."""
 
     RUN_FRAMES = [f"run_{i}" for i in range(6)]
+    SLIDE_FRAMES = ["slide_in", "slide_0", "slide_1", "slide_out_0", "slide_out_1"]
+    SLIDE_IN = (0.05, 0.11)   # slide_in → slide_0 → slide_1(유지)로 넘어가는 시각
+    SLIDE_OUT = 0.12          # 일어서는 동작 시간 (slide_out_0 → slide_out_1)
 
     def __init__(self):
         folder = C.GENERATED / "runner"
-        names = self.RUN_FRAMES + ["jump_up", "jump_down", "slide_0", "slide_1"]
+        names = self.RUN_FRAMES + ["jump_up", "jump_down"] + self.SLIDE_FRAMES
         self.frames = {n: arcade.load_texture(folder / f"{n}.png") for n in names}
         super().__init__(self.frames["run_0"], scale=C.CHAR_SCALE)
         self.anim_time = 0.0
+        self.prev_pose = Pose.RUN
+        self.slide_out = 0.0
         self.center_x = C.PLAYER_X
 
     def sync(self, body: PlayerBody, dt: float, speed: float, invincible: float) -> None:
@@ -115,12 +120,25 @@ class PlayerSprite(arcade.Sprite):
         bob = 0
         if body.pose == Pose.JUMP:
             name = "jump_up" if body.vy > 0 else "jump_down"
+            self.slide_out = 0.0
         elif body.pose == Pose.SLIDE:
-            name = "slide_0" if body.slide_time < 0.07 else "slide_1"
-            bob = int(self.anim_time * 20) % 2       # 미끄러지는 느낌의 1px 흔들림
+            if body.slide_time < self.SLIDE_IN[0]:
+                name = "slide_in"
+            elif body.slide_time < self.SLIDE_IN[1]:
+                name = "slide_0"
+            else:
+                name = "slide_1"
+                bob = int(self.anim_time * 20) % 2   # 미끄러지는 느낌의 1px 흔들림
         else:
-            fps = 12 * speed / 450
-            name = self.RUN_FRAMES[int(self.anim_time * fps) % len(self.RUN_FRAMES)]
+            if self.prev_pose == Pose.SLIDE:
+                self.slide_out = self.SLIDE_OUT     # 슬라이딩에서 일어서는 동작
+            if self.slide_out > 0:
+                name = "slide_out_0" if self.slide_out > self.SLIDE_OUT / 2 else "slide_out_1"
+                self.slide_out -= dt
+            else:
+                fps = 12 * speed / 450
+                name = self.RUN_FRAMES[int(self.anim_time * fps) % len(self.RUN_FRAMES)]
+        self.prev_pose = body.pose
         self.texture = self.frames[name]
         self.center_x = C.PLAYER_X
         self.center_y = round(body.feet_y + self.height / 2) + bob

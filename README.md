@@ -149,7 +149,7 @@ python tools/build_assets.py
 
 ## 크레딧
 
-- 캐릭터: **Animated Runner Character** — irmirx (CC0)
+- 캐릭터: **Animated Runner Character** — irmirx (CC0), 슬라이딩 동작은 프로젝트 팀 제공 시트
 - 배경: **Warped City** — Luis Zuno / ansimuz (CC0)
 - 아이콘: **Lucide** (ISC)
 - 글꼴: **Galmuri11** — Lee Minseo (SIL OFL 1.1)

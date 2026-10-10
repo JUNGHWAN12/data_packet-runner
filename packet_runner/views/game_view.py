@@ -108,6 +108,8 @@ class GameView(arcade.View):
         self.background.update(self.scroll)
         self.effects.update(dt, -self.speed * dt)
         self.player.sync(self.body, dt, self.speed, self.invincible)
+        if self.body.pose == Pose.SLIDE and self.body.on_ground and random.random() < 0.7:
+            self.effects.spark(C.PLAYER_X + random.uniform(-40, 20), C.GROUND_Y + 4, random.choice((C.CYAN, C.WHITE)))
         self._place_badge()
         self._update_shake(dt)
         self.hud.update(self.score.score, self.score.fragments, self.score.collisions, self.t, C.ZONES[self.zone][1])
@@ -191,8 +193,8 @@ class GameView(arcade.View):
 
     def _place_badge(self) -> None:
         bob = math.sin(self.t * 6) * 3
-        height = 108 if self.body.pose == Pose.SLIDE else 168
-        self.badge.position = (C.PLAYER_X - 6, round(self.body.feet_y + height + bob))
+        top = assets.content_box(self.player.texture)[3] * C.CHAR_SCALE   # 현재 프레임 그림의 위 끝
+        self.badge.position = (C.PLAYER_X - 6, round(self.body.feet_y + top + 30 + bob))
         self.badge.alpha = self.player.alpha
 
     def _update_shake(self, dt: float) -> None:

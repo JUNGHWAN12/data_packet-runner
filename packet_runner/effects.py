@@ -20,6 +20,11 @@ class Effects:
             life = random.uniform(0.3, 0.6)
             self.particles.append([x, y, math.cos(angle) * v, math.sin(angle) * v, life, life, color, size])
 
+    def spark(self, x: float, y: float, color) -> None:
+        """슬라이딩 마찰 불꽃: 뒤쪽 위로 튄다."""
+        life = random.uniform(0.15, 0.3)
+        self.particles.append([x, y, -random.uniform(60, 220), random.uniform(80, 260), life, life, color, 3])
+
     def popup(self, value: str, x: float, y: float, color, size: float = 27) -> None:
         label = assets.text(value, x, y, color, size, anchor_x="center", anchor_y="center")
         self.popups.append([label, 0.9])
