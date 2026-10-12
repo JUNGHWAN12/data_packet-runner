@@ -14,6 +14,7 @@ from ..background import Parallax, draw_ground
 from ..booth import IdleWatch
 from ..effects import Effects
 from ..hud import Hud
+from ..logs import log
 from ..player import PlayerBody, PlayerSprite, Pose
 from ..powerups import PowerUps
 from ..scoring import ScoreBoard
@@ -58,6 +59,10 @@ class GameView(arcade.View):
         self.score = ScoreBoard()
         self.powerups = PowerUps()
         self.autopilot = Autopilot() if self.window.autoplay else None
+        self.frames = 0                 # 실제 프레임 수·시간 (부스 PC 성능 기록용)
+        self.wall_time = 0.0
+        self.slow_frames = 0
+        log.info("게임 시작 seed=%d", self.world.picker.seed)
 
         self.t = 0.0
         self.scroll = 0.0
@@ -111,9 +116,16 @@ class GameView(arcade.View):
                                 "스팸 미사일! 오른쪽 끝의 ! 경고를 보고 점프·슬라이딩으로 피해요"][self.zone]
         self.zone_banner = 2.5
 
+    def describe(self) -> str:
+        """오류 기록에 남길 상황 (같은 맵을 다시 만들어 볼 수 있도록 시드 포함)."""
+        return f" seed={self.world.picker.seed} t={self.t:.1f} 점수={self.score.score}"
+
     def on_update(self, delta_time: float) -> None:
         if self.window.paused:          # 다른 창이 선택되어 키를 받을 수 없으면 멈춘다
             return
+        self.frames += 1
+        self.wall_time += delta_time
+        self.slow_frames += delta_time > 1 / 30
         dt = min(delta_time, 1 / 30)
         if self.arriving:
             self._update_arrival(dt)
@@ -121,6 +133,7 @@ class GameView(arcade.View):
         if not self.autopilot:
             self.idle.update(dt)
             if self.idle.expired:
+                log.info("자리 비움으로 중단%s", self.describe())
                 from .title_view import TitleView
                 self.window.show_view(TitleView())
                 return
@@ -304,6 +317,11 @@ class GameView(arcade.View):
             self.effects.burst(self.server.center_x, self.server.center_y, C.PURPLE, 3, 300, 3)
         self.effects.update(dt, 0)
         if self.arrival_t >= C.ARRIVAL_TIME:
+            s = self.score
+            fps = self.frames / self.wall_time if self.wall_time > 0 else 0.0
+            log.info("게임 끝 seed=%d 점수=%d 충돌=%d 조각=%d 피싱=%d/%d 차단=%d 글자=%d 보너스=%s | 평균 %.1f FPS, "
+                     "느린 프레임 %d개", self.world.picker.seed, s.score, s.collisions, s.fragments, s.phished,
+                     s.phished + s.phish_avoided, s.blocked, s.letters, s.bonus, fps, self.slow_frames)
             from .result_view import ResultView
             self.window.show_view(ResultView(self.score, self.world.picker.seed))
 

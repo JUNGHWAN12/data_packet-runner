@@ -1,4 +1,4 @@
-from packet_runner.booth import HoldTimer, IdleWatch
+from packet_runner.booth import CrashGuard, HoldTimer, IdleWatch
 
 
 def test_hold_fires_once_after_full_time():
@@ -30,3 +30,10 @@ def test_idle_warns_then_expires_and_input_resets():
     assert not idle.warning and idle.left == 25.0
     idle.update(25.0)
     assert idle.expired and not idle.warning
+
+
+def test_crash_guard_allows_a_few_then_stops():
+    guard = CrashGuard(limit=3, window=30.0)
+    assert guard.record(0.0) and guard.record(1.0) and guard.record(2.0)
+    assert not guard.record(3.0)            # 30초 안에 네 번째
+    assert guard.record(40.0)               # 오래된 오류는 잊는다 (40초 시점엔 하나뿐)

@@ -33,6 +33,21 @@ class HoldTimer:
         return max(0.0, self.need - (self.held or 0.0))
 
 
+class CrashGuard:
+    """오류가 나면 시작 화면으로 복구하되, 짧은 시간에 되풀이되면 더 버티지 않고 프로그램을 끝낸다
+    (같은 오류로 끝없이 돌지 않도록 — 부스 실행 파일 run_booth.bat이 프로그램을 새로 시작한다)."""
+
+    def __init__(self, limit: int = 5, window: float = 30.0):
+        self.limit = limit
+        self.window = window
+        self.times: list[float] = []
+
+    def record(self, now: float) -> bool:
+        """오류 시각을 기록한다. 아직 복구해도 되면 True."""
+        self.times = [t for t in self.times if now - t < self.window] + [now]
+        return len(self.times) <= self.limit
+
+
 class IdleWatch:
     """게임 중 자리 비움: warn초 동안 입력이 없으면 경고, grace초 더 없으면 끝."""
 

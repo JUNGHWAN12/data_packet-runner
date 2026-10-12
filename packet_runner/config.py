@@ -102,6 +102,7 @@ BONUS_TINT = (255, 200, 60, 55)
 
 # --- 로컬 랭킹 ---
 RANKING_PATH = ROOT / "data" / "ranking.json"
+LOG_PATH = ROOT / "logs" / "game.log"   # 오류·판별 기록 (부스 PC 점검·문제 재현용)
 RANKING_SIZE = 10            # 오늘의 TOP 10
 NAME_LEN = 3                 # 이름: 영문 대문자 3자
 NAME_TIME = 15.0             # 이름 입력 제한 시간 (키를 누르면 최소 3초는 더 기다림)
@@ -114,6 +115,7 @@ QUIT_HOLD = 3.0              # ESC를 이 시간 동안 누르고 있어야 종�
 TITLE_INPUT_LOCK = 2.0       # 시작 화면에 들어온 뒤 이 시간 동안은 시작 키를 받지 않음 (연타로 바로 다음 판 방지)
 RESULT_SKIP_LOCK = 3.0       # 결과 요약·순위표를 Space로 넘길 수 있기까지의 시간
 IDLE_WARN = 15.0             # 게임 중 이 시간 동안 입력이 없으면 "아직 하고 있나요?"를 띄우고 멈춤
+CRASH_LIMIT = (5, 30.0)       # 오류가 30초 안에 5번을 넘으면 복구를 멈추고 프로그램을 끝냄 (run_booth.bat이 다시 시작)
 IDLE_GRACE = 10.0            # 경고 뒤 이 시간 더 입력이 없으면 기록 없이 시작 화면으로
 BG_GAME_TINT = (135, 145, 175)  # 게임 중 배경을 어둡고 덜 화려하게 (장애물·아이템이 잘 보이도록)
 

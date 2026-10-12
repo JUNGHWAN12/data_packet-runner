@@ -8,8 +8,13 @@ from .. import assets
 from .. import config as C
 from ..background import Parallax, draw_ground
 from ..booth import HoldTimer
+from ..logs import log
 from ..player import PlayerBody, PlayerSprite
 from ..ranking_board import RankingBoard
+
+
+CREDIT = ("AI 생성 이미지 포함: 캐릭터의 슬라이딩·2단 점프 동작 그림(ChatGPT)     "
+          "그림 irmirx · ansimuz · Lucide   글꼴 IBM Plex Sans KR")
 
 
 class TitleView(arcade.View):
@@ -29,6 +34,8 @@ class TitleView(arcade.View):
         self.subtitle = assets.text("장애물을 넘어 데이터를 목적지 서버까지 전달하라!", cx, 590, C.CYAN, 33,
                                     anchor_x="center")
         self.start = assets.text("Space를 눌러 시작", cx, 215, C.YELLOW, 42, anchor_x="center")
+        # 학교 생성형 AI 사용 지침: AI 생성 이미지가 들어 있음을 밝힌다 (출처는 assets/CREDITS.md)
+        self.credit = assets.text(CREDIT, cx, 108, (150, 165, 200), 18, anchor_x="center", anchor_y="center")
 
         # 오늘의 순위표 (기록이 하나라도 있으면 안내 화면과 번갈아 보여 준다)
         self.board = RankingBoard(top=960)
@@ -72,6 +79,7 @@ class TitleView(arcade.View):
         self.t += delta_time
         self.notice_time = max(0.0, self.notice_time - delta_time)
         if self.reset_hold.update(delta_time):
+            log.info("운영자가 오늘 순위를 초기화함")
             self.window.ranking.reset_today()
             self._refresh_board()
             self.notice.text = "오늘 순위를 초기화했습니다 (이전 파일은 data 폴더에 백업)"
@@ -98,6 +106,9 @@ class TitleView(arcade.View):
                 self.subtitle.draw()
             if self.ready and math.sin(self.t * 5) > -0.3:
                 self.start.draw()
+            half = self.credit.content_width / 2 + 24      # 바닥 회로 무늬 위에서도 읽히도록 어두운 띠
+            arcade.draw_lrbt_rectangle_filled(C.SCREEN_W / 2 - half, C.SCREEN_W / 2 + half, 92, 124, (*C.GROUND_DARK, 235))
+            self.credit.draw()
             if self.notice_time > 0:
                 self.notice.draw()
             self.window.draw_overlay()

@@ -1,10 +1,14 @@
 """게임 창. 어떤 창 크기에서도 1920×1080 화면을 비율을 유지해(레터박스) 보여 준다."""
 
+import platform
+import time
+
 import arcade
 
 from . import assets
 from . import config as C
-from .booth import HoldTimer
+from .booth import CrashGuard, HoldTimer
+from .logs import log
 from .ranking import Ranking
 
 
@@ -22,12 +26,15 @@ class GameWindow(arcade.Window):
     """booth=True(부스 운영 모드): 전체 화면, 마우스 커서 숨김, 개발용 키(F3·F11) 끔."""
 
     def __init__(self, fullscreen: bool = False, autoplay: bool = False, booth: bool = False):
+        self._ready = False             # 창 준비가 끝나기 전의 오류는 복구하지 않는다
         super().__init__(*_window_size(), C.TITLE, fullscreen=fullscreen or booth, resizable=True)
         self.autoplay = autoplay
         self.booth = booth
         self.debug = False
         self.focused = True             # 다른 창을 누르면 False → 게임을 멈추고 "화면을 클릭해 주세요"
         self.quit_hold = HoldTimer(C.QUIT_HOLD)
+        self.close_notice = 0.0         # 부스 모드에서 창 닫기를 막았을 때 안내를 보여 줄 남은 시간
+        self.crashes = CrashGuard(*C.CRASH_LIMIT)
         self.set_mouse_visible(not self.fullscreen)
         self.ranking = Ranking(C.RANKING_PATH)
         assets.load_font()
@@ -43,6 +50,11 @@ class GameWindow(arcade.Window):
         self.quit_notice = assets.text("", C.SCREEN_W / 2, 40, (255, 190, 120), 21, anchor_x="center",
                                        anchor_y="center")
         arcade.schedule(self.tick, 1 / 30)
+        log.info("창 %dx%d, 전체 화면=%s, 부스 모드=%s, 자동 플레이=%s | Python %s, Arcade %s, %s | %s (OpenGL %s)",
+                 self.width, self.height, self.fullscreen, booth, autoplay, platform.python_version(),
+                 arcade.version.VERSION, platform.platform(), self.ctx.info.RENDERER,
+                 ".".join(map(str, self.ctx.gl_version)))
+        self._ready = True
 
     def _fit_camera(self, width: int, height: int) -> None:
         scale = min(width / C.SCREEN_W, height / C.SCREEN_H)
@@ -67,14 +79,48 @@ class GameWindow(arcade.Window):
             self.set_mouse_visible(not self.fullscreen)
         elif symbol == arcade.key.F3:
             self.debug = not self.debug
+        elif symbol == arcade.key.F12:
+            raise RuntimeError("F12: 오류 복구 시험")     # 개발 모드에서 자동 복구가 되는지 확인하는 키
 
     def on_key_release(self, symbol: int, modifiers: int) -> None:
         if symbol == arcade.key.ESCAPE:
             self.quit_hold.release()
 
     def tick(self, dt: float) -> None:
+        self.close_notice = max(0.0, self.close_notice - dt)
         if self.quit_hold.update(dt):
+            log.info("ESC를 눌러 종료")
             self.close()
+
+    def on_close(self) -> None:
+        """Alt+F4·창 닫기 버튼. 부스 모드에서는 관람객이 끄지 못하도록 무시하고 ESC 3초로만 끈다."""
+        if self.booth:
+            log.info("창 닫기 요청을 무시함 (부스 모드)")
+            self.close_notice = 3.0
+            return
+        super().on_close()
+
+    # --- 오류 복구 ---
+    def dispatch_event(self, *args):
+        """화면 갱신·그리기·키 입력은 모두 여기를 지난다. 오류가 나면 기록하고 시작 화면으로 돌아간다."""
+        try:
+            return super().dispatch_event(*args)
+        except Exception:
+            if not self._ready:
+                raise
+            self._recover(args[0] if args else "?")
+
+    def _recover(self, event: str) -> None:
+        view = self.current_view
+        where = type(view).__name__ + (view.describe() if hasattr(view, "describe") else "")
+        log.exception("오류 발생 (%s, %s) — 시작 화면으로 복구", event, where)
+        if not self.crashes.record(time.monotonic()):
+            log.critical("짧은 시간에 오류가 되풀이되어 프로그램을 끝냄")
+            raise                       # main()이 기록하고 끝내면 run_booth.bat이 다시 시작한다
+        self.shake(0, 0)
+        self.quit_hold.release()
+        from .views.title_view import TitleView
+        self.show_view(TitleView())
 
     # --- 창 선택 상태 (키 입력을 받을 수 있는지) ---
     def on_activate(self) -> None:
@@ -99,4 +145,7 @@ class GameWindow(arcade.Window):
             self.focus_sub.draw()
         if self.quit_hold.active:
             self.quit_notice.text = f"종료하려면 ESC를 {self.quit_hold.remaining:.0f}초 더 누르고 있으세요"
+            self.quit_notice.draw()
+        elif self.close_notice > 0:
+            self.quit_notice.text = "종료하려면 ESC를 3초 동안 누르고 있으세요"
             self.quit_notice.draw()

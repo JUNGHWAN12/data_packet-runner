@@ -1,12 +1,11 @@
 """결과 화면: 점수 요약 → (오늘 TOP 10이면) 이름 입력 → 오늘의 순위표 → 시작 화면으로 자동 복귀."""
 
-import sys
-
 import arcade
 
 from .. import assets
 from .. import config as C
 from ..background import Parallax, draw_ground
+from ..logs import log
 from ..ranking import ANONYMOUS, finalize_name, is_allowed_name
 from ..ranking_board import RankingBoard
 from ..scoring import ScoreBoard, grade_for
@@ -87,8 +86,10 @@ class ResultView(arcade.View):
         try:
             rank = self.ranking.add(record)
         except OSError as error:      # 저장에 실패해도 게임은 계속 (화면에는 그대로 보여 준다)
-            print(f"랭킹 저장 실패: {error}", file=sys.stderr)
+            log.warning("랭킹 저장 실패: %s", error)
             rank = self.rank
+        else:
+            log.info("기록 저장: 오늘 %d위 %d점 (%s)", rank, self.score.score, "이름 입력" if name != ANONYMOUS else "익명")
         highlight = rank - 1 if rank <= C.RANKING_SIZE else None
         self.board.set_data(self.ranking.top_today(), highlight, self.ranking.best_all_time())
         if highlight is None:
