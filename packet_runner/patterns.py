@@ -13,8 +13,11 @@ CONGESTION = "congestion"   # 네트워크 혼잡 구간 — 점프
 CLOUD = "cloud"             # 통신 오류 구름 — 슬라이딩
 GAP = "gap"                 # 연결 단절 구간(바닥 틈) — 점프
 SPIKE = "spike"             # 트래픽 폭주(높이 쌓인 패킷 탑) — 2단 점프
+PHISH = "phish"             # 피싱 미끼(가짜 데이터 조각) — 슬라이딩(또는 점프)으로 피함
 
-ACTION = {CONGESTION: "jump", GAP: "jump", CLOUD: "slide", SPIKE: "double"}
+OBSTACLES = (CONGESTION, CLOUD, SPIKE)       # 스프라이트로 그리는 장애물 (틈과 피싱 미끼는 따로)
+ACTION = {CONGESTION: "jump", GAP: "jump", CLOUD: "slide", SPIKE: "double", PHISH: "slide"}
+ITEM_SIZE = 54                               # 아이템 판정 크기 (world.Item.rect와 같음)
 
 # 앞 장애물이 끝난 뒤 다음 장애물이 시작될 때까지 필요한 최소 시간(초)
 # (점프 체공 0.77초, 2단 점프 체공 약 1.2초, 반응 여유 약 0.3초를 기준으로 계산)
@@ -51,11 +54,15 @@ PATTERNS = [
     Pattern("cloud_congestion", ((CLOUD, 0.0), (CONGESTION, 1.05)), 1),
     Pattern("spike", ((SPIKE, 0.0),), 1),
     Pattern("congestion_spike", ((CONGESTION, 0.0), (SPIKE, 1.35)), 1),
+    Pattern("phish", ((PHISH, 0.0),), 1),
+    Pattern("congestion_phish", ((CONGESTION, 0.0), (PHISH, 1.05)), 1),
     Pattern("cloud_tunnel", ((CLOUD, 0.0), (CLOUD, 0.6)), 2),
     Pattern("gap_gap", ((GAP, 0.0), (GAP, 1.3)), 2),
     Pattern("gauntlet", ((CONGESTION, 0.0), (GAP, 1.15), (CLOUD, 2.5)), 2),
     Pattern("spike_cloud", ((SPIKE, 0.0), (CLOUD, 1.2)), 2),
     Pattern("gap_spike", ((GAP, 0.0), (SPIKE, 1.5)), 2),
+    Pattern("phish_pair", ((PHISH, 0.0), (PHISH, 0.55)), 2),
+    Pattern("cloud_phish", ((CLOUD, 0.0), (PHISH, 0.65)), 2),
 ]
 
 
@@ -84,6 +91,8 @@ def width_of(kind: str, speed: float) -> float:
         return C.CLOUD_W
     if kind == SPIKE:
         return C.SPIKE_BOX[0]
+    if kind == PHISH:
+        return ITEM_SIZE
     return speed * C.GAP_TIME
 
 
@@ -109,7 +118,7 @@ def jump_arc_height(dt: float) -> float:
 
 @dataclass
 class Spawn:
-    kind: str          # congestion / cloud / gap / fragment / token_slot
+    kind: str          # congestion / cloud / gap / spike / phish / fragment / item_slot
     x: float           # 패턴 시작 지점 기준 거리(px)
     y: float = 0.0     # 아이템 중심 높이(화면 좌표)
     width: float = 0.0
@@ -121,8 +130,14 @@ def layout(pattern: Pattern, speed: float, rest: float) -> tuple[list, float]:
     for kind, start in pattern.items:
         x = start * speed
         w = width_of(kind, speed)
-        spawns.append(Spawn(kind, x, width=w))
         center = x + w / 2
+        if kind == PHISH:
+            # 진짜 데이터 조각 줄 사이에 가짜 하나를 살짝 높게 끼워 둔다: 슬라이딩하면 진짜만 먹는다
+            spawns.append(Spawn(PHISH, center, C.GROUND_Y + C.PHISH_Y, w))
+            for dt in (-0.2, 0.2):
+                spawns.append(Spawn("fragment", center + dt * speed, C.GROUND_Y + 36))
+            continue
+        spawns.append(Spawn(kind, x, width=w))
         if ACTION[kind] == "double":
             # 2단 점프로만 닿는 높이에 놓아 보너스처럼 보이게 한다
             for dt, h in ((-0.15, C.SPIKE_BOX[1] + 40), (0.0, C.SPIKE_BOX[1] + 110), (0.15, C.SPIKE_BOX[1] + 40)):
@@ -135,10 +150,10 @@ def layout(pattern: Pattern, speed: float, rest: float) -> tuple[list, float]:
             for dx in (-66, 0, 66):
                 spawns.append(Spawn("fragment", center + dx, C.GROUND_Y + 36))
     end = pattern_duration(pattern, speed) * speed
-    # 쉬는 구간: 바닥 근처 데이터 조각 한 줄 + 재전송 토큰 후보 자리
+    # 쉬는 구간: 바닥 근처 데이터 조각 한 줄 + 아이템(재전송 토큰·실드·자석) 후보 자리
     for i in range(3):
         spawns.append(Spawn("fragment", end + (0.25 + 0.15 * i) * speed, C.GROUND_Y + 60))
-    spawns.append(Spawn("token_slot", end + 0.75 * speed, C.GROUND_Y + 90))
+    spawns.append(Spawn("item_slot", end + 0.75 * speed, C.GROUND_Y + 90))
     return spawns, end + rest_after(pattern, rest) * speed
 
 

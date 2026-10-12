@@ -73,6 +73,21 @@ SPIKE_HIT_W = 66                 # 실제 충돌 폭 — 그림(상자 74px)보�
 GAP_TIME = 0.3                   # 바닥 틈 폭 = 속도 × GAP_TIME
 ZONE_REST = [1.6, 1.2, 1.0]      # 패턴 사이 쉬는 시간(초)
 
+# --- 피싱 미끼·아이템 (구현계획 §15 1차) ---
+PHISH_Y = 95                 # 가짜 데이터 중심 높이(바닥 기준): 서 있으면 닿고, 슬라이딩·점프하면 피함
+PHISH_PENALTY = 30
+PHISH_AVOID_BONUS = 10
+SHIELD_TIME = 15.0           # 방화벽 실드 유지 시간 (그 전에 한 번 막으면 사라짐)
+SHIELD_GRACE = 1.0           # 실드가 막은 직후 잠깐 무적 (연속 충돌 방지)
+MAGNET_TIME = 6.0            # 라우팅 자석 지속 시간
+MAGNET_REACH = 520           # 플레이어 앞쪽으로 끌어오는 거리(px)
+MAGNET_PULL = 1600           # 끌려오는 속도(px/s)
+# 아이템 자리(패턴 사이)에 나오는 아이템: (종류, 등장 구간, 최소 간격 초, 확률)
+ITEM_RULES = [
+    ("shield", 1, 25.0, 0.35),
+    ("magnet", 0, 20.0, 0.30),
+]
+
 # --- 로컬 랭킹 ---
 RANKING_PATH = ROOT / "data" / "ranking.json"
 RANKING_SIZE = 10            # 오늘의 TOP 10

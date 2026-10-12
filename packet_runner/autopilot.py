@@ -27,6 +27,10 @@ class Autopilot:
                     body.press_jump()
             elif body.on_ground and 0 < ahead - C.STAND_BOX[0] / 2 < speed * 0.12 + 10:
                 body.press_jump()
+        for item in world.items:
+            # 피싱 미끼는 슬라이딩으로 피한다
+            if item.kind == "phish" and -P.ITEM_SIZE < item.center_x - x < speed * 0.3 + P.ITEM_SIZE:
+                want_down = True
         for gap in world.gaps:
             ahead = gap.left_x - x
             if not gap.repaired and body.on_ground and 0 < ahead < speed * 0.08 + 4:

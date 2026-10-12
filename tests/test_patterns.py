@@ -98,3 +98,18 @@ def test_rest_after_covers_any_next_pattern():
         last = P.ACTION[pattern.items[-1][0]]
         for first in {P.ACTION[p.items[0][0]] for p in P.PATTERNS}:
             assert P.rest_after(pattern, min(C.ZONE_REST)) >= P.MIN_SPACING[(last, first)]
+
+
+def test_phish_is_dodged_by_slide_but_hits_standing_player():
+    bottom = C.PHISH_Y - P.ITEM_SIZE / 2
+    assert C.SLIDE_BOX[1] < bottom < C.STAND_BOX[1]
+
+
+def test_phish_layout_puts_real_fragments_at_slide_height():
+    pattern = next(p for p in P.PATTERNS if p.name == "phish")
+    spawns, _ = P.layout(pattern, 600, 1.0)
+    bait = [s for s in spawns if s.kind == P.PHISH]
+    real = [s for s in spawns if s.kind == "fragment" and abs(abs(s.x - bait[0].x) - 0.2 * 600) < 1]
+    assert len(bait) == 1 and len(real) == 2
+    for s in real:                             # 슬라이딩하면서도 진짜는 먹을 수 있다
+        assert s.y - P.ITEM_SIZE / 2 < C.GROUND_Y + C.SLIDE_BOX[1]

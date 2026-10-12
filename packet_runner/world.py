@@ -56,18 +56,37 @@ class Obstacle(arcade.Sprite):
 
 
 class Item(arcade.Sprite):
+    # 피싱 미끼 그림은 위쪽에 낚싯바늘이 붙어 있어, 01/10 부분이 판정 위치에 오도록 그림을 위로 올린다
+    DRAW_OFFSET = {"phish": 15}
+
     def __init__(self, kind: str, x: float, y: float):
         super().__init__(assets.icon(kind))
-        self.kind = kind            # fragment / token
+        self.kind = kind            # fragment / token / shield / magnet / phish
         self.base_y = y
-        self.center_x, self.center_y = x, y
+        self.offset = self.DRAW_OFFSET.get(kind, 0)
+        self.center_x, self.center_y = x, y + self.offset
         self.phase = random.uniform(0, math.tau)
+        self.passed = False         # 피싱 미끼를 무사히 지나쳤는지
+        self.pulled = False         # 라우팅 자석에 끌려오는 중
+        self.first = False          # 처음 나온 피싱 미끼 (안내 글자 표시)
 
     def animate(self, t: float) -> None:
-        self.center_y = self.base_y + math.sin(t * 5 + self.phase) * 4
+        if not self.pulled:
+            self.center_y = self.base_y + self.offset + math.sin(t * 5 + self.phase) * 4
+
+    def pull_toward(self, x: float, y: float, dt: float) -> None:
+        """라우팅 자석: 플레이어 쪽으로 끌려온다."""
+        self.pulled = True
+        dx, dy = x - self.center_x, y - self.center_y
+        dist = math.hypot(dx, dy) or 1.0
+        step = min(dist, C.MAGNET_PULL * dt)
+        self.center_x += dx / dist * step
+        self.center_y += dy / dist * step
+        self.base_y = self.center_y - self.offset
 
     def rect(self) -> arcade.Rect:
-        return arcade.LBWH(self.center_x - 27, self.center_y - 27, 54, 54)
+        half = P.ITEM_SIZE / 2
+        return arcade.LBWH(self.center_x - half, self.center_y - self.offset - half, P.ITEM_SIZE, P.ITEM_SIZE)
 
 
 class Gap:
@@ -99,8 +118,10 @@ class World:
         self.gaps: list[Gap] = []
         self.next_spawn = 750.0     # 첫 패턴까지 거리(px)
         self.spawning = True
-        self.last_token_t = -99.0
+        self.last_item_t = {"token": -99.0, "shield": -99.0, "magnet": -99.0}
+        self.phish_seen = 0
         self.anim_t = 0.0
+        self.phish_label = assets.text("가짜 데이터!", 0, 0, C.RED, 21, anchor_x="center")
         self.spike_label = assets.text("2단 점프!", 0, 0, (255, 159, 69), 21, anchor_x="center")
 
     # --- 생성 ---
@@ -117,8 +138,13 @@ class World:
         origin = SPAWN_X - overshoot
         for s in spawns:
             x = origin + s.x
-            if s.kind in (P.CONGESTION, P.CLOUD, P.SPIKE):
+            if s.kind in P.OBSTACLES:
                 self.obstacles.append(Obstacle(s.kind, x))
+            elif s.kind == P.PHISH:
+                bait = Item("phish", x, s.y)
+                bait.first = self.phish_seen < 2      # 처음 두 개에는 '가짜 데이터!' 안내를 붙인다
+                self.phish_seen += 1
+                self.items.append(bait)
             elif s.kind == P.GAP:
                 gap = Gap(x, s.width)
                 gap.place()
@@ -126,12 +152,23 @@ class World:
                 self.signs.append(gap.sign)
             elif s.kind == "fragment":
                 self.items.append(Item("fragment", x, s.y))
-            elif s.kind == "token_slot":
-                chance = 0.45 if lost_pool > 0 else 0.08
-                if t - self.last_token_t > 15 and self.rng.random() < chance:
-                    self.items.append(Item("token", x, s.y))
-                    self.last_token_t = t
+            elif s.kind == "item_slot":
+                kind = self._pick_item(t, zone, lost_pool)
+                if kind:
+                    self.items.append(Item(kind, x, s.y))
+                    self.last_item_t[kind] = t
         self.next_spawn = length - overshoot
+
+    def _pick_item(self, t: float, zone: int, lost_pool: int) -> str | None:
+        """패턴 사이 아이템 자리에 놓을 아이템. 잃은 점수가 있으면 재전송 토큰이 우선."""
+        if lost_pool > 0 and t - self.last_item_t["token"] > 15 and self.rng.random() < 0.45:
+            return "token"
+        for kind, from_zone, every, chance in C.ITEM_RULES:
+            if zone >= from_zone and t - self.last_item_t[kind] > every and self.rng.random() < chance:
+                return kind
+        if t - self.last_item_t["token"] > 15 and self.rng.random() < 0.08:
+            return "token"
+        return None
 
     # --- 매 프레임 ---
     def update(self, dt: float, speed: float, t: float, lost_pool: int) -> None:
@@ -227,3 +264,7 @@ class World:
         self.draw_spikes()
         self.obstacles.draw(pixelated=True)
         self.items.draw(pixelated=True)
+        for item in self.items:
+            if item.kind == "phish" and item.first and not item.passed:
+                self.phish_label.x, self.phish_label.y = item.center_x, item.top + 10
+                self.phish_label.draw()

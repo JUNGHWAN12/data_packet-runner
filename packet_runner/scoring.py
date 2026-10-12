@@ -13,6 +13,9 @@ class ScoreBoard:
     passed: int = 0
     tokens: int = 0
     lost_pool: int = 0   # 충돌·추락으로 실제로 깎였지만 아직 되찾지 못한 점수 ("유실 데이터")
+    phished: int = 0     # 가짜 데이터(피싱 미끼)에 걸린 횟수
+    phish_avoided: int = 0
+    blocked: int = 0     # 방화벽 실드가 막아 낸 횟수
 
     def add_fragment(self) -> int:
         self.fragments += 1
@@ -42,6 +45,18 @@ class ScoreBoard:
             return restored, True
         self.score += C.SCORE_TOKEN_FALLBACK
         return C.SCORE_TOKEN_FALLBACK, False
+
+    def take_phish(self) -> int:
+        """피싱 미끼를 먹음. 충돌과 달리 패킷 손실로 세지 않고, 재전송 토큰으로도 되찾을 수 없다."""
+        lost = min(C.PHISH_PENALTY, self.score)
+        self.score -= lost
+        self.phished += 1
+        return lost
+
+    def avoid_phish(self) -> int:
+        self.phish_avoided += 1
+        self.score += C.PHISH_AVOID_BONUS
+        return C.PHISH_AVOID_BONUS
 
     def arrive(self) -> int:
         self.score += C.SCORE_ARRIVAL

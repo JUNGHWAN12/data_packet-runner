@@ -21,8 +21,22 @@ class Hud:
         self.goal = arcade.Sprite(assets.icon("server"), scale=0.2)
         self.goal.position = (BAR_R + 39, BAR_Y)
         self.icons.extend([self.goal, self.marker])
+        # 아이템 효과: 아이콘 + 남은 시간 막대 (점수 아래)
+        self.effect_icons = {}
+        for kind in ("shield", "magnet"):
+            icon = arcade.Sprite(assets.icon(kind), scale=0.45)
+            icon.visible = False
+            self.effect_icons[kind] = icon
+            self.icons.append(icon)
+        self.effects: dict = {}
 
-    def update(self, score: int, fragments: int, collisions: int, t: float, zone_name: str) -> None:
+    def update(self, score: int, fragments: int, collisions: int, t: float, zone_name: str,
+               effects: dict | None = None) -> None:
+        self.effects = {k: v for k, v in (effects or {}).items() if v > 0}
+        for kind, icon in self.effect_icons.items():
+            icon.visible = kind in self.effects
+        for i, kind in enumerate(self.effects):
+            self.effect_icons[kind].position = (70 + i * 190, 930)
         self.score.text = f"점수 {score:,}"
         self.fragments.text = f"데이터 조각 × {fragments}"
         self.zone.text = zone_name
@@ -43,6 +57,11 @@ class Hud:
         arcade.draw_lrbt_rectangle_filled(BAR_L, self.marker.center_x, BAR_Y - 5, BAR_Y + 5, C.CYAN)
         for x in (BAR_L + (BAR_R - BAR_L) / 3, BAR_L + (BAR_R - BAR_L) * 2 / 3):
             arcade.draw_lrbt_rectangle_filled(x - 2, x + 2, BAR_Y - 12, BAR_Y + 12, (120, 150, 200))
+        for i, (kind, fraction) in enumerate(self.effects.items()):
+            x = 105 + i * 190
+            color = (110, 193, 255) if kind == "shield" else C.PURPLE
+            arcade.draw_lrbt_rectangle_filled(x, x + 110, 924, 936, (40, 60, 100))
+            arcade.draw_lrbt_rectangle_filled(x, x + 110 * fraction, 924, 936, color)
         self.icons.draw(pixelated=True)
         for label in (self.score, self.fragments, self.zone, self.collisions, self.best):
             label.draw()

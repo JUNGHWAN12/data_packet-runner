@@ -53,3 +53,12 @@ def test_grade_boundaries():
         assert grade_for(t) == g
     assert grade_for(thresholds[0] - 1) == grades[1]
     assert grade_for(0) == grades[-1]
+
+
+def test_phish_penalty_is_not_a_collision_and_not_restorable():
+    s = ScoreBoard(score=100)
+    assert s.take_phish() == C.PHISH_PENALTY
+    assert (s.score, s.phished, s.collisions, s.lost_pool) == (70, 1, 0, 0)
+    s.score = 10
+    assert s.take_phish() == 10 and s.score == 0      # 0점 아래로 내려가지 않음
+    assert s.avoid_phish() == C.PHISH_AVOID_BONUS and s.phish_avoided == 1

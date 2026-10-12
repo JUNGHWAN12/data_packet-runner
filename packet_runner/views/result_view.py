@@ -44,10 +44,13 @@ class ResultView(arcade.View):
             assets.text("등급", cx + 255, 682, C.WHITE, 21, anchor_x="center"),
             assets.text(f"수집한 데이터 조각  {score.fragments}개", cx, 585, C.GREEN, 27, anchor_x="center"),
             assets.text(f"패킷 손실(충돌·추락)  {score.collisions}회", cx, 537, C.RED, 27, anchor_x="center"),
-            assets.text(f"재전송 토큰  {score.tokens}개", cx, 489, C.YELLOW, 27, anchor_x="center"),
-            assets.text(MESSAGE, cx, 390, C.WHITE, 24, anchor_x="center", multiline=True, width=1500,
+            assets.text(f"재전송 토큰  {score.tokens}개   ·   방화벽 차단  {score.blocked}회", cx, 489, C.YELLOW, 27,
+                        anchor_x="center"),
+            assets.text(f"가짜 데이터(피싱)  피함 {score.phish_avoided}  ·  걸림 {score.phished}", cx, 441,
+                        (255, 150, 165), 27, anchor_x="center"),
+            assets.text(MESSAGE, cx, 370, C.WHITE, 24, anchor_x="center", multiline=True, width=1500,
                         align="center"),
-            assets.text(rank_line, cx, 265, C.YELLOW if self.qualifies else C.WHITE, 33, anchor_x="center"),
+            assets.text(rank_line, cx, 250, C.YELLOW if self.qualifies else C.WHITE, 33, anchor_x="center"),
         ]
 
         # 이름 입력

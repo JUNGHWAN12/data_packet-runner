@@ -64,7 +64,10 @@ ICONS = {
     "token": ("refresh-cw", "#FFE066", 3),
     "server": ("server", "#C49BFF", 9),
     "packet": ("mail", "#5EF2FF", 2),
+    "shield": ("shield-check", "#6EC1FF", 3),
+    "magnet": ("magnet", "#C49BFF", 3),
 }
+PHISH_COLOR = "#FF5D73"
 GLOW_PAD = 12
 
 
@@ -232,34 +235,49 @@ def _hex_to_rgb(color: str) -> tuple:
     return tuple(int(color[i:i + 2], 16) for i in (1, 3, 5))
 
 
+def _pixel_icon(cairosvg, icon: str, color: str, scale: int) -> Image.Image:
+    """Lucide SVG → 24px 래스터화 → 반투명 가장자리 제거 → 정수 배 확대 (발광 없음)."""
+    import io
+
+    svg = (SRC / "icons" / f"{icon}.svg").read_text(encoding="utf-8").replace("currentColor", color)
+    png = cairosvg.svg2png(bytestring=svg.encode(), output_width=24, output_height=24)
+    img = Image.open(io.BytesIO(png)).convert("RGBA")
+    crisp = Image.new("RGBA", img.size, _hex_to_rgb(color) + (0,))
+    crisp.putalpha(img.getchannel("A").point(lambda a: 255 if a >= 110 else 0))
+    return crisp.resize((24 * scale, 24 * scale), Image.NEAREST)
+
+
+def _with_glow(big: Image.Image, color: str) -> Image.Image:
+    rgb = _hex_to_rgb(color)
+    canvas = Image.new("RGBA", (big.width + GLOW_PAD * 2, big.height + GLOW_PAD * 2), (0, 0, 0, 0))
+    canvas.alpha_composite(big, (GLOW_PAD, GLOW_PAD))
+    glow_alpha = canvas.getchannel("A").filter(ImageFilter.GaussianBlur(GLOW_PAD / 2)).point(lambda a: int(a * 0.8))
+    glow = Image.new("RGBA", canvas.size, rgb + (0,))
+    glow.putalpha(glow_alpha)
+    glow.alpha_composite(canvas)
+    return glow
+
+
 def build_icons() -> None:
     try:
         import cairosvg
     except ImportError:
         print("icons: cairosvg가 없어 건너뜀 (pip install cairosvg)")
         return
-    import io
 
     out = OUT / "icons"
     out.mkdir(parents=True, exist_ok=True)
     for name, (icon, color, scale) in ICONS.items():
-        svg = (SRC / "icons" / f"{icon}.svg").read_text(encoding="utf-8").replace("currentColor", color)
-        png = cairosvg.svg2png(bytestring=svg.encode(), output_width=24, output_height=24)
-        img = Image.open(io.BytesIO(png)).convert("RGBA")
-        # 반투명 가장자리를 없애 픽셀아트처럼 만든다
-        rgb = _hex_to_rgb(color)
-        alpha = img.getchannel("A").point(lambda a: 255 if a >= 110 else 0)
-        crisp = Image.new("RGBA", img.size, rgb + (0,))
-        crisp.putalpha(alpha)
-        big = crisp.resize((24 * scale, 24 * scale), Image.NEAREST)
-        canvas = Image.new("RGBA", (big.width + GLOW_PAD * 2, big.height + GLOW_PAD * 2), (0, 0, 0, 0))
-        canvas.alpha_composite(big, (GLOW_PAD, GLOW_PAD))
-        glow_alpha = canvas.getchannel("A").filter(ImageFilter.GaussianBlur(GLOW_PAD / 2)).point(lambda a: int(a * 0.8))
-        glow = Image.new("RGBA", canvas.size, rgb + (0,))
-        glow.putalpha(glow_alpha)
-        glow.alpha_composite(canvas)
-        glow.save(out / f"{name}.png")
-    print(f"icons: {len(ICONS)} -> {out}")
+        _with_glow(_pixel_icon(cairosvg, icon, color, scale), color).save(out / f"{name}.png")
+    # 피싱 미끼: 진짜 데이터 조각(01/10)과 같은 모양이지만 빨간색 + 노란 낚싯바늘이 걸려 있다
+    # (색만이 아니라 모양으로도 구별되도록 — 색약 관람객 배려)
+    fake = _pixel_icon(cairosvg, "binary", PHISH_COLOR, 3)
+    hook = _pixel_icon(cairosvg, "fishing-hook", "#FFE066", 2)
+    bait = Image.new("RGBA", (fake.width + 18, fake.height + 30), (0, 0, 0, 0))
+    bait.alpha_composite(fake, (0, 30))
+    bait.alpha_composite(hook, (bait.width - hook.width, 0))
+    _with_glow(bait, PHISH_COLOR).save(out / "phish.png")
+    print(f"icons: {len(ICONS) + 1} -> {out}")
 
 
 if __name__ == "__main__":

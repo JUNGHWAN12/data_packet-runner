@@ -14,8 +14,12 @@ from ..background import Parallax, draw_ground
 from ..effects import Effects
 from ..hud import Hud
 from ..player import PlayerBody, PlayerSprite, Pose
+from ..powerups import PowerUps
 from ..scoring import ScoreBoard
 from ..world import World
+
+
+SHIELD_BLUE = (110, 193, 255)
 
 
 class GameView(arcade.View):
@@ -51,6 +55,7 @@ class GameView(arcade.View):
         self.effects = Effects()
         self.hud = Hud(self.window.ranking.best_today_score())
         self.score = ScoreBoard()
+        self.powerups = PowerUps()
         self.autopilot = Autopilot() if self.window.autoplay else None
 
         self.t = 0.0
@@ -87,8 +92,8 @@ class GameView(arcade.View):
     # --- 진행 ---
     def _set_banner(self) -> None:
         self.banner.text = f"구간 {self.zone + 1} · {C.ZONES[self.zone][1]}"
-        self.banner_sub.text = ["낮은 속도로 점프와 슬라이딩을 익혀요",
-                                "새 장애물 '트래픽 폭주'는 Space를 두 번 눌러 2단 점프로 넘어요",
+        self.banner_sub.text = ["낮은 속도로 점프와 슬라이딩을 익혀요   ·   보라색 자석은 데이터 조각을 끌어와요",
+                                "트래픽 폭주는 2단 점프로!   빨간 가짜 데이터(피싱)는 슬라이딩으로 피해요",
                                 "서버가 가까워요! 끝까지 전달하세요"][self.zone]
         self.zone_banner = 2.5
 
@@ -111,6 +116,7 @@ class GameView(arcade.View):
         self.scroll += self.speed * dt
         self.slow_timer = max(0.0, self.slow_timer - dt)
         self.invincible = max(0.0, self.invincible - dt)
+        self.powerups.update(dt)
 
         self.world.update(dt, self.speed, self.t, self.score.lost_pool)
         if self.autopilot:
@@ -127,6 +133,8 @@ class GameView(arcade.View):
         if self.body.fell(ground):
             self._on_fall()
 
+        if self.powerups.active("magnet"):
+            self._pull_fragments(dt)
         self._check_collisions()
         self._update_server()
         self.background.update(self.scroll)
@@ -137,7 +145,8 @@ class GameView(arcade.View):
         self._place_badge()
         self._update_trail(dt)
         self._update_shake(dt)
-        self.hud.update(self.score.score, self.score.fragments, self.score.collisions, self.t, C.ZONES[self.zone][1])
+        self.hud.update(self.score.score, self.score.fragments, self.score.collisions, self.t, C.ZONES[self.zone][1],
+                        {kind: self.powerups.fraction(kind) for kind in ("shield", "magnet")})
 
         if self.t >= C.GAME_TIME:
             self.arriving = True
@@ -161,18 +170,58 @@ class GameView(arcade.View):
                 if not gap.fell:
                     self.effects.popup(f"+{self.score.add_pass()}", C.PLAYER_X, self.body.feet_y + 165, C.CYAN, 21)
         for item in [i for i in self.world.items if box.overlaps(i.rect())]:
-            if item.kind == "fragment":
-                gained = self.score.add_fragment()
-                self.effects.burst(item.center_x, item.center_y, C.GREEN, 10, 240, 3)
-                self.effects.popup(f"+{gained}", item.center_x, item.center_y + 36, C.GREEN, 18)
-            else:
-                gained, restored = self.score.use_token()
-                self.effects.burst(item.center_x, item.center_y, C.YELLOW, 24, 390, 4)
-                label = f"재전송 완료 +{gained}" if restored else f"+{gained}"
-                self.effects.popup(label, item.center_x, item.center_y + 45, C.YELLOW, 27)
+            self._collect(item)
             item.remove_from_sprite_lists()
+        # 피싱 미끼를 건드리지 않고 지나치면 보너스
+        for item in self.world.items:
+            if item.kind == "phish" and not item.passed and item.center_x + P.ITEM_SIZE / 2 < C.PLAYER_X - box.width / 2:
+                item.passed = True
+                gained = self.score.avoid_phish()
+                self.effects.popup(f"가짜 데이터 피함 +{gained}", C.PLAYER_X + 40, self.body.feet_y + 200, C.GREEN, 21)
+
+    def _collect(self, item) -> None:
+        x, y = item.center_x, item.center_y
+        if item.kind == "fragment":
+            gained = self.score.add_fragment()
+            self.effects.burst(x, y, C.GREEN, 10, 240, 3)
+            self.effects.popup(f"+{gained}", x, y + 36, C.GREEN, 18)
+        elif item.kind == "token":
+            gained, restored = self.score.use_token()
+            self.effects.burst(x, y, C.YELLOW, 24, 390, 4)
+            label = f"재전송 완료 +{gained}" if restored else f"+{gained}"
+            self.effects.popup(label, x, y + 45, C.YELLOW, 27)
+        elif item.kind == "phish":
+            lost = self.score.take_phish()
+            self.shake_time = 0.15
+            self.effects.burst(x, y, C.RED, 18, 330, 4)
+            self.effects.popup("피싱 주의! 가짜 데이터" + (f" -{lost}" if lost else ""), x + 40, y + 60, C.RED, 27)
+        else:
+            self.powerups.activate(item.kind)
+            color = SHIELD_BLUE if item.kind == "shield" else C.PURPLE
+            label = "방화벽 실드! 한 번 막아 줘요" if item.kind == "shield" else "라우팅 자석! 데이터를 끌어와요"
+            self.effects.burst(x, y, color, 24, 390, 4)
+            self.effects.popup(label, x + 40, y + 60, color, 27)
+
+    def _pull_fragments(self, dt: float) -> None:
+        """라우팅 자석: 앞쪽의 진짜 데이터 조각만 끌어온다 (가짜는 끌려오지 않는다)."""
+        target_y = self.body.feet_y + 55
+        for item in self.world.items:
+            if item.kind == "fragment" and -80 < item.center_x - C.PLAYER_X < C.MAGNET_REACH:
+                item.pull_toward(C.PLAYER_X, target_y, dt)
+
+    def _shield_block(self, y: float) -> bool:
+        """방화벽 실드가 있으면 충돌·추락을 막는다."""
+        if not self.powerups.absorb():
+            return False
+        self.score.blocked += 1
+        self.invincible = C.SHIELD_GRACE
+        self.effects.burst(C.PLAYER_X, y, SHIELD_BLUE, 28, 420, 4)
+        self.effects.popup("방화벽 차단!", C.PLAYER_X + 60, y + 135, SHIELD_BLUE, 30)
+        return True
 
     def _on_hit(self, x: float, y: float) -> None:
+        if self._shield_block(y):
+            return
         lost = self.score.penalize()
         self.slow_timer = C.HIT_SLOW_TIME
         self.invincible = C.INVINCIBLE_TIME
@@ -186,8 +235,10 @@ class GameView(arcade.View):
             gap.fell = True
             gap.repaired = True       # 끊어진 연결을 복구하고 그 자리에서 다시 달린다
             gap.place()
-        lost = self.score.penalize()
         self.body.respawn()
+        if self._shield_block(C.GROUND_Y + 60):
+            return
+        lost = self.score.penalize()
         self.invincible = C.INVINCIBLE_TIME
         self.slow_timer = C.HIT_SLOW_TIME
         self.shake_time = 0.25
@@ -260,6 +311,7 @@ class GameView(arcade.View):
             self.server_list.draw(pixelated=True)
             self.fx_list.draw(pixelated=True)
             self.ghosts.draw(pixelated=True)
+            self._draw_powerups()
             self.player_list.draw(pixelated=True)
             self.effects.draw()
             if self.window.debug:
@@ -271,6 +323,22 @@ class GameView(arcade.View):
             if self.zone_banner > 0:
                 self.banner.draw()
                 self.banner_sub.draw()
+
+    def _draw_powerups(self) -> None:
+        cx, cy = C.PLAYER_X, self.player.center_y
+        if self.powerups.active("magnet"):
+            # 자석: 보라색 고리와, 끌려오는 조각까지 이어지는 선
+            pulse = 0.5 + 0.5 * math.sin(self.t * 10)
+            arcade.draw_circle_outline(cx, cy, 95 + 8 * pulse, (*C.PURPLE, 150), 3)
+            for item in self.world.items:
+                if item.pulled:
+                    arcade.draw_line(cx, cy, item.center_x, item.center_y, (*C.PURPLE, 90), 2)
+        if self.powerups.active("shield"):
+            # 실드: 파란 보호막. 끝나기 3초 전부터 깜빡인다
+            remain = self.powerups.remaining["shield"]
+            if remain > 3 or int(remain * 8) % 2 == 0:
+                arcade.draw_circle_filled(cx, cy, 88, (*SHIELD_BLUE, 40))
+                arcade.draw_circle_outline(cx, cy, 88, (*SHIELD_BLUE, 200), 4)
 
     def _draw_debug(self) -> None:
         arcade.draw_rect_outline(self.body.rect(), arcade.color.YELLOW, 3)
