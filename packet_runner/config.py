@@ -8,9 +8,9 @@ GENERATED = ASSETS / "generated"
 
 TITLE = "데이터 패킷 러너"
 SCREEN_W, SCREEN_H = 1920, 1080
-# 보통·굵게 두 파일을 모두 등록해야 Arcade가 "Galmuri11" 이름을 찾는다
-FONT_PATHS = [ASSETS / "fonts" / "Galmuri11.ttf", ASSETS / "fonts" / "Galmuri11-Bold.ttf"]
-FONT_NAME = "Galmuri11"
+# 보통·굵게 두 파일을 모두 등록해야 Arcade가 글꼴 이름을 찾는다 (굵게만 있으면 한글 없는 기본 글꼴로 바뀜)
+FONT_PATHS = [ASSETS / "fonts" / "IBMPlexSansKR-Regular.ttf", ASSETS / "fonts" / "IBMPlexSansKR-Bold.ttf"]
+FONT_NAME = "IBM Plex Sans KR"
 
 # --- 시간(초) ---
 GAME_TIME = 180.0

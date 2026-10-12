@@ -19,8 +19,8 @@
 | ![자석](docs/screenshots/magnet.png) | ![스팸 미사일](docs/screenshots/missile.png) |
 | **PACKET 글자를 다 모으면 보너스 타임** | **결과 화면** |
 | ![보너스 타임](docs/screenshots/bonus.png) | ![결과 화면](docs/screenshots/result.png) |
-| **오늘의 TOP 10** | |
-| ![순위표](docs/screenshots/ranking_board.png) | |
+| **이름 입력 (오늘 TOP 10에 들면)** | **오늘의 TOP 10** |
+| ![이름 입력](docs/screenshots/ranking_entry.png) | ![순위표](docs/screenshots/ranking_board.png) |
 
 ---|---|
 | ![시작 화면](docs/screenshots/title.png) | ![게임 화면](docs/screenshots/gameplay.png) |
@@ -162,7 +162,7 @@ packet_runner/
 assets/
 ├─ source/                  원본 에셋 (러너 시트, Warped City 배경, Lucide 아이콘)
 ├─ generated/               게임에서 쓰는 변환된 이미지
-├─ fonts/                   Galmuri11 글꼴
+├─ fonts/                   IBM Plex Sans KR 글꼴 (Regular·Bold)
 ├─ licenses/                에셋 라이선스 원문
 └─ CREDITS.md               에셋 출처
 tools/build_assets.py       source → generated 변환 스크립트
@@ -229,6 +229,6 @@ python tools/build_assets.py
 - 2단 점프 공중제비: 위 캐릭터를 바탕으로 팀이 **ChatGPT 이미지 생성 기능**으로 만든 그림 (AI 생성 이미지)
 - 배경: **Warped City** — Luis Zuno / ansimuz (CC0)
 - 아이콘: **Lucide** (ISC)
-- 글꼴: **Galmuri11** — Lee Minseo (SIL OFL 1.1)
+- 글꼴: **IBM Plex Sans KR** — IBM Corp. (SIL OFL 1.1)
 
 자세한 출처와 변경 사항은 [`assets/CREDITS.md`](assets/CREDITS.md)를 참고하세요.

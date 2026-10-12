@@ -32,7 +32,7 @@ def content_box(texture: arcade.Texture) -> tuple:
 
 @cache
 def letter(ch: str) -> arcade.Texture:
-    """PACKET 글자 아이템: 노란 테두리 동그라미 안의 글자 (Galmuri 글꼴로 그린다)."""
+    """PACKET 글자 아이템: 노란 테두리 동그라미 안의 글자 (게임 글꼴 굵게로 그린다)."""
     from PIL import Image, ImageDraw, ImageFont
 
     size = 84

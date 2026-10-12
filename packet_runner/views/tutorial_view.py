@@ -61,7 +61,9 @@ class KeyCap:
 
     def __init__(self, label: str, size: float = 21):
         self.label = label
-        self.text = assets.text(label, 0, 0, C.WHITE, size, anchor_x="center", anchor_y="center")
+        # 화살표 글자는 글꼴에서 작게 그려지므로 키 크기는 그대로 두고 글자만 키운다
+        glyph = size * 1.5 if label in "↑↓←→" else size
+        self.text = assets.text(label, 0, 0, C.WHITE, glyph, anchor_x="center", anchor_y="center")
         self.w = max(54, self.text.content_width + 30)
         self.h = size * 2 + 8
 
