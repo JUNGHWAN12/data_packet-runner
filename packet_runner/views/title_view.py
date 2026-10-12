@@ -7,6 +7,7 @@ import arcade
 from .. import assets
 from .. import config as C
 from ..background import Parallax, draw_ground
+from ..booth import HoldTimer
 from ..player import PlayerBody, PlayerSprite
 from ..ranking_board import RankingBoard
 
@@ -33,7 +34,7 @@ class TitleView(arcade.View):
         self.board = RankingBoard(top=960)
         self._refresh_board()
         # 운영자: F9를 누르고 있으면 오늘 순위 초기화
-        self.reset_hold: float | None = None
+        self.reset_hold = HoldTimer(C.RESET_HOLD)
         self.notice = assets.text("", cx, 60, (170, 190, 220), 21, anchor_x="center")
         self.notice_time = 0.0
 
@@ -46,8 +47,13 @@ class TitleView(arcade.View):
     def showing_board(self) -> bool:
         return self.has_records and int(self.t // C.TITLE_SWAP_TIME) % 2 == 1
 
+    @property
+    def ready(self) -> bool:
+        """결과 화면에서 Space를 연타하던 관람객이 곧바로 다음 판을 시작하지 않도록 잠깐 기다린다."""
+        return self.t >= C.TITLE_INPUT_LOCK
+
     def on_key_press(self, symbol: int, modifiers: int) -> None:
-        if symbol in (arcade.key.SPACE, arcade.key.ENTER):
+        if symbol in (arcade.key.SPACE, arcade.key.ENTER) and self.ready:
             if self.window.autoplay:        # 자동 플레이(테스트·데모)는 튜토리얼 없이 바로
                 from .game_view import GameView
                 self.window.show_view(GameView())
@@ -55,26 +61,24 @@ class TitleView(arcade.View):
                 from .tutorial_view import TutorialView
                 self.window.show_view(TutorialView())
         elif symbol == arcade.key.F9:
-            self.reset_hold = 0.0
+            self.reset_hold.press()
 
     def on_key_release(self, symbol: int, modifiers: int) -> None:
         if symbol == arcade.key.F9:
-            self.reset_hold = None
+            self.reset_hold.release()
             self.notice_time = 0.0
 
     def on_update(self, delta_time: float) -> None:
         self.t += delta_time
         self.notice_time = max(0.0, self.notice_time - delta_time)
-        if self.reset_hold is not None:
-            self.reset_hold += delta_time
-            self.notice.text = f"오늘 순위 초기화: {C.RESET_HOLD - self.reset_hold:.0f}초 더 누르고 있으세요"
+        if self.reset_hold.update(delta_time):
+            self.window.ranking.reset_today()
+            self._refresh_board()
+            self.notice.text = "오늘 순위를 초기화했습니다 (이전 파일은 data 폴더에 백업)"
+            self.notice_time = 4.0
+        elif self.reset_hold.active:
+            self.notice.text = f"오늘 순위 초기화: {self.reset_hold.remaining:.0f}초 더 누르고 있으세요"
             self.notice_time = 0.5
-            if self.reset_hold >= C.RESET_HOLD:
-                self.window.ranking.reset_today()
-                self._refresh_board()
-                self.reset_hold = None
-                self.notice.text = "오늘 순위를 초기화했습니다 (이전 파일은 data 폴더에 백업)"
-                self.notice_time = 4.0
         self.scroll += 180 * delta_time
         self.background.update(self.scroll)
         self.player.sync(self.body, delta_time, 390, 0)
@@ -92,7 +96,8 @@ class TitleView(arcade.View):
                 self.title_glow.draw()
                 self.title.draw()
                 self.subtitle.draw()
-            if math.sin(self.t * 5) > -0.3:
+            if self.ready and math.sin(self.t * 5) > -0.3:
                 self.start.draw()
             if self.notice_time > 0:
                 self.notice.draw()
+            self.window.draw_overlay()

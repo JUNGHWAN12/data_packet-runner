@@ -135,9 +135,9 @@ class World:
         self.speed = P.speed_at(0)
         self.anim_t = 0.0
         self.warn_label = assets.text("!", 0, 0, (255, 138, 61), 48, anchor_x="center", anchor_y="center")
-        self.letter_hint = assets.text("PACKET 글자를 모으면 보너스!", 0, 0, C.YELLOW, 21, anchor_x="center")
-        self.phish_label = assets.text("가짜 데이터!", 0, 0, C.RED, 21, anchor_x="center")
-        self.spike_label = assets.text("2단 점프!", 0, 0, (255, 159, 69), 21, anchor_x="center")
+        self.letter_hint = assets.text("PACKET 글자를 모으면 보너스!", 0, 0, C.YELLOW, 24, anchor_x="center")
+        self.phish_label = assets.text("가짜 데이터!", 0, 0, C.RED, 24, anchor_x="center")
+        self.spike_label = assets.text("2단 점프!", 0, 0, (255, 159, 69), 24, anchor_x="center")
 
     # --- 생성 ---
     def _spawn_pattern(self, t: float, lost_pool: int, overshoot: float) -> None:

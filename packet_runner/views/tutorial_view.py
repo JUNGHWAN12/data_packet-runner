@@ -244,6 +244,8 @@ class TutorialView(arcade.View):
 
     # --- 진행 ---
     def on_update(self, delta_time: float) -> None:
+        if self.window.paused:
+            return
         dt = min(delta_time, 1 / 30)
         self.t += dt
         self.page_t += dt
@@ -296,6 +298,7 @@ class TutorialView(arcade.View):
                 self._draw_prompt()
             self.ui_effects.draw()
             self.skip.draw()
+            self.window.draw_overlay()
 
     def _draw_header(self) -> None:
         cx = C.SCREEN_W / 2

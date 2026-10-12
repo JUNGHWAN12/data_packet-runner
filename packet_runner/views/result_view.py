@@ -108,12 +108,13 @@ class ResultView(arcade.View):
     # --- 입력 ---
     def on_key_press(self, symbol: int, modifiers: int) -> None:
         confirm = symbol in (arcade.key.SPACE, arcade.key.ENTER)
+        # 결과를 볼 시간을 주고, Space 연타로 순위표·시작 화면을 지나 다음 판까지 넘어가지 않도록 잠근다
         if self.phase == "summary":
-            if confirm and self.t > 2.0:      # 결과를 볼 시간을 주기 위해 처음 2초는 넘기지 않는다
+            if confirm and self.t > C.RESULT_SKIP_LOCK:
                 self._next_after_summary()
         elif self.phase == "entry":
             self._entry_key(symbol)
-        elif self.phase == "board" and confirm and self.phase_t > 1.0:
+        elif self.phase == "board" and confirm and self.phase_t > C.RESULT_SKIP_LOCK:
             self._back()
 
     def _entry_key(self, symbol: int) -> None:
@@ -142,7 +143,7 @@ class ResultView(arcade.View):
             if self.t >= C.SUMMARY_TIME:
                 self._next_after_summary()
             else:
-                self.countdown.text = "Space: 다음"
+                self.countdown.text = "Space: 다음" if self.t > C.RESULT_SKIP_LOCK else ""
         elif self.phase == "entry":
             remain = self.entry_deadline - self.t
             if remain <= 0:
@@ -156,7 +157,8 @@ class ResultView(arcade.View):
             if remain <= 0:
                 self._back()
                 return
-            self.countdown.text = f"{int(remain) + 1}초 뒤 처음 화면으로 돌아갑니다  (Space: 바로 이동)"
+            skip = "  (Space: 바로 이동)" if self.phase_t > C.RESULT_SKIP_LOCK else ""
+            self.countdown.text = f"{int(remain) + 1}초 뒤 처음 화면으로 돌아갑니다{skip}"
 
     # --- 그리기 ---
     def on_draw(self) -> None:
@@ -174,6 +176,7 @@ class ResultView(arcade.View):
                 self.board.draw()
                 self.board_note.draw()
             self.countdown.draw()
+            self.window.draw_overlay()
 
     def _draw_entry(self) -> None:
         for label in self.entry_labels:

@@ -6,16 +6,20 @@ from . import assets
 from . import config as C
 
 BAR_L, BAR_R, BAR_Y = 585, 1335, 1000
+SOFT = (170, 190, 220)
+LOSS_FLASH = 0.8       # 패킷 손실이 늘었을 때 번쩍이는 시간
 
 
 class Hud:
     def __init__(self, best_today: int = 0):
         self.best_today = best_today
-        self.best = assets.text("", C.SCREEN_W - 45, 969, (170, 190, 220), 21, anchor_x="right")
-        self.score = assets.text("", 45, 1014, C.WHITE, 33)
-        self.fragments = assets.text("", 45, 969, C.GREEN, 21)
-        self.zone = assets.text("", C.SCREEN_W / 2, 945, C.CYAN, 18, anchor_x="center")
-        self.collisions = assets.text("", C.SCREEN_W - 45, 1014, C.RED, 21, anchor_x="right")
+        self.best = assets.text("", C.SCREEN_W - 45, 965, SOFT, 24, anchor_x="right")
+        self.score = assets.text("", 45, 1014, C.WHITE, 36)
+        self.fragments = assets.text("", 45, 965, C.GREEN, 24)
+        self.zone = assets.text("", C.SCREEN_W / 2, 940, C.CYAN, 24, anchor_x="center")
+        self.collisions = assets.text("", C.SCREEN_W - 45, 1014, SOFT, 27, anchor_x="right")
+        self.last_collisions = 0
+        self.loss_flash_until = -1.0
         self.icons = arcade.SpriteList()
         self.marker = arcade.Sprite(assets.icon("packet"))
         self.goal = arcade.Sprite(assets.icon("server"), scale=0.2)
@@ -46,13 +50,20 @@ class Hud:
         self.fragments.text = f"데이터 조각 × {fragments}"
         self.zone.text = zone_name
         self.collisions.text = f"패킷 손실 {collisions}"
+        if collisions > self.last_collisions:
+            self.loss_flash_until = t + LOSS_FLASH
+        self.last_collisions = collisions
+        if t < self.loss_flash_until:
+            self.collisions.color = C.WHITE if int((self.loss_flash_until - t) * 10) % 2 else C.RED
+        else:
+            self.collisions.color = C.RED if collisions else SOFT
         # 오늘 최고 점수를 도전 목표로 보여 주고, 넘어서면 강조한다
         if self.best_today == 0:
-            self.best.text, self.best.color = "오늘 첫 기록에 도전!", (170, 190, 220)
+            self.best.text, self.best.color = "오늘 첫 기록에 도전!", SOFT
         elif score > self.best_today:
             self.best.text, self.best.color = "오늘 최고 기록 경신 중!", C.YELLOW
         else:
-            self.best.text, self.best.color = f"오늘 최고 {self.best_today:,}", (170, 190, 220)
+            self.best.text, self.best.color = f"오늘 최고 {self.best_today:,}", SOFT
         progress = min(1.0, t / C.GAME_TIME)
         self.marker.position = (BAR_L + (BAR_R - BAR_L) * progress, BAR_Y)
 

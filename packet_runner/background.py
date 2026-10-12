@@ -17,7 +17,8 @@ LAYERS = [
 
 
 class Parallax:
-    def __init__(self):
+    def __init__(self, tint=(255, 255, 255)):
+        """tint: 배경을 어둡게 할 때 곱할 색 (게임 중에는 장애물·아이템이 잘 보이도록 어둡게)."""
         self.layers = []
         for name, factor, bottom in LAYERS:
             texture = assets.background(name)
@@ -26,6 +27,7 @@ class Parallax:
             for _ in range(math.ceil(C.SCREEN_W / tile_w) + 1):
                 # 위치는 hit box가 아닌 텍스처 크기 기준으로 잡는다 (투명 가장자리 때문에 이음새가 생기지 않도록)
                 sprite = arcade.Sprite(texture, scale=C.BG_SCALE)
+                sprite.color = tint
                 sprite.center_y = bottom + sprite.height / 2
                 sprites.append(sprite)
             self.layers.append((sprites, factor, tile_w))

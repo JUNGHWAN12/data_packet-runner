@@ -11,6 +11,7 @@ from .. import config as C
 from .. import patterns as P
 from ..autopilot import Autopilot
 from ..background import Parallax, draw_ground
+from ..booth import IdleWatch
 from ..effects import Effects
 from ..hud import Hud
 from ..player import PlayerBody, PlayerSprite, Pose
@@ -51,7 +52,7 @@ class GameView(arcade.View):
         self.server_list.append(self.server)
 
         self.world = World(seed)
-        self.background = Parallax()
+        self.background = Parallax(tint=C.BG_GAME_TINT)
         self.effects = Effects()
         self.hud = Hud(self.window.ranking.best_today_score())
         self.score = ScoreBoard()
@@ -75,12 +76,24 @@ class GameView(arcade.View):
         self.banner = assets.text("", C.SCREEN_W / 2, 660, C.WHITE, 51, anchor_x="center")
         self.banner_sub = assets.text("", C.SCREEN_W / 2, 600, C.CYAN, 24, anchor_x="center")
         self.bonus_label = assets.text("", C.SCREEN_W / 2, 820, C.YELLOW, 39, anchor_x="center")
+        # 자리 비움: 입력이 한참 없으면 멈추고 묻는다. 끝내 답이 없으면 기록 없이 시작 화면으로
+        self.idle = IdleWatch(C.IDLE_WARN, C.IDLE_GRACE)
+        cx = C.SCREEN_W / 2
+        self.idle_labels = [
+            assets.text("아직 하고 있나요?", cx, 640, C.YELLOW, 60, anchor_x="center", anchor_y="center"),
+            assets.text("아무 키나 누르면 이어서 해요", cx, 545, C.WHITE, 33, anchor_x="center", anchor_y="center"),
+        ]
+        self.idle_count = assets.text("", cx, 460, (170, 190, 220), 24, anchor_x="center", anchor_y="center")
         self._set_banner()
 
     # --- 입력 ---
     def on_key_press(self, symbol: int, modifiers: int) -> None:
         if self.autopilot:
             return
+        if self.idle.warning:           # "아직 하고 있나요?"에 대한 대답일 뿐, 점프로 쓰지 않는다
+            self.idle.poke()
+            return
+        self.idle.poke()
         if symbol in (arcade.key.SPACE, arcade.key.UP):
             self.body.press_jump()
         elif symbol == arcade.key.DOWN:
@@ -99,10 +112,21 @@ class GameView(arcade.View):
         self.zone_banner = 2.5
 
     def on_update(self, delta_time: float) -> None:
+        if self.window.paused:          # 다른 창이 선택되어 키를 받을 수 없으면 멈춘다
+            return
         dt = min(delta_time, 1 / 30)
         if self.arriving:
             self._update_arrival(dt)
             return
+        if not self.autopilot:
+            self.idle.update(dt)
+            if self.idle.expired:
+                from .title_view import TitleView
+                self.window.show_view(TitleView())
+                return
+            if self.idle.warning:
+                self.idle_count.text = f"{int(self.idle.left) + 1}초 뒤 처음 화면으로 돌아갑니다"
+                return
 
         self.t += dt
         zone = P.zone_at(self.t)
@@ -341,6 +365,11 @@ class GameView(arcade.View):
                 self.banner_sub.draw()
             elif self.world.bonus.in_bonus:
                 self.bonus_label.draw()
+            if self.idle.warning:
+                arcade.draw_lrbt_rectangle_filled(0, C.SCREEN_W, 0, C.SCREEN_H, (5, 8, 20, 215))
+                for label in (*self.idle_labels, self.idle_count):
+                    label.draw()
+            self.window.draw_overlay()
 
     def _draw_powerups(self) -> None:
         cx, cy = C.PLAYER_X, self.player.center_y
