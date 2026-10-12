@@ -109,6 +109,10 @@ SUMMARY_TIME = 8.0           # 결과 화면: 점수 요약을 보여 주는 시
 BOARD_MIN_TIME = 15.0        # 결과 화면: 순위표를 최소한 보여 주는 시간
 TITLE_SWAP_TIME = 8.0        # 시작 화면: 안내 ↔ 오늘의 순위표 전환 간격
 RESET_HOLD = 3.0             # 시작 화면에서 F9를 이 시간 동안 누르면 오늘 순위 초기화 (운영자용)
+TUTORIAL_PRACTICE_TIME = 20.0  # 튜토리얼 조작 연습 최대 시간 (세 가지를 다 해 보면 바로 넘어감)
+TUTORIAL_PAGE_TIME = 9.0       # 장애물·아이템 안내 페이지를 자동으로 넘기는 시간
+TUTORIAL_LOCK = 1.0            # 페이지가 바뀐 뒤 Space로 넘길 수 없는 시간 (점프 연타로 건너뛰지 않게)
+TUTORIAL_SLIDE_HOLD = 0.35     # 이만큼 누르고 있어야 슬라이딩 연습 완료 ('누르고 있기'를 익히도록)
 # 이름으로 쓸 수 없는 영문 3자 (부적절한 약어·욕설의 영문 표기). 선생님이 자유롭게 추가하면 된다.
 BANNED_NAMES = frozenset({
     "ASS", "FUK", "FUC", "FCK", "FUQ", "SEX", "SXY", "CUM", "DIK", "DIC", "COK", "TIT", "FAG", "NIG",
