@@ -16,6 +16,8 @@ class ScoreBoard:
     phished: int = 0     # 가짜 데이터(피싱 미끼)에 걸린 횟수
     phish_avoided: int = 0
     blocked: int = 0     # 방화벽 실드가 막아 낸 횟수
+    letters: int = 0     # 모은 PACKET 글자 수
+    bonus: bool = False  # 보너스 타임을 열었는지
 
     def add_fragment(self) -> int:
         self.fragments += 1

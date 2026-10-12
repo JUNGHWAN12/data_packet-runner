@@ -15,8 +15,9 @@ class Autopilot:
             if o.right_x < x - C.SLIDE_BOX[0]:
                 continue
             ahead = o.left_x - x
-            if o.kind == P.CLOUD:
-                if ahead < speed * 0.3 + C.SLIDE_BOX[0] / 2:
+            approach = speed * o.factor                # 미사일은 더 빨리 다가온다
+            if o.kind in P.OVERHEAD:
+                if ahead < approach * 0.3 + C.SLIDE_BOX[0] / 2:
                     want_down = True
             elif o.kind == P.SPIKE:
                 # 미리 뛰고, 올라가는 힘이 줄어들 때 한 번 더
@@ -25,7 +26,7 @@ class Autopilot:
                 elif (not body.on_ground and body.air_jumps > 0 and body.vy < 300
                       and ahead - C.STAND_BOX[0] / 2 < speed * 0.45 and o.right_x > x - C.STAND_BOX[0]):
                     body.press_jump()
-            elif body.on_ground and 0 < ahead - C.STAND_BOX[0] / 2 < speed * 0.12 + 10:
+            elif body.on_ground and 0 < ahead - C.STAND_BOX[0] / 2 < approach * 0.12 + 10:
                 body.press_jump()
         for item in world.items:
             # 피싱 미끼는 슬라이딩으로 피한다

@@ -29,9 +29,14 @@ class Hud:
             self.effect_icons[kind] = icon
             self.icons.append(icon)
         self.effects: dict = {}
+        # PACKET 글자 모으기 현황 (오른쪽, 오늘 최고 점수 아래)
+        self.letters = [assets.text(ch, C.SCREEN_W - 45 - (len(C.BONUS_WORD) - 1 - i) * 40, 915, (80, 90, 120), 24,
+                                    anchor_x="right") for i, ch in enumerate(C.BONUS_WORD)]
 
     def update(self, score: int, fragments: int, collisions: int, t: float, zone_name: str,
-               effects: dict | None = None) -> None:
+               effects: dict | None = None, letters: int = 0) -> None:
+        for i, label in enumerate(self.letters):
+            label.color = C.YELLOW if i < letters else (80, 90, 120)
         self.effects = {k: v for k, v in (effects or {}).items() if v > 0}
         for kind, icon in self.effect_icons.items():
             icon.visible = kind in self.effects
@@ -63,5 +68,5 @@ class Hud:
             arcade.draw_lrbt_rectangle_filled(x, x + 110, 924, 936, (40, 60, 100))
             arcade.draw_lrbt_rectangle_filled(x, x + 110 * fraction, 924, 936, color)
         self.icons.draw(pixelated=True)
-        for label in (self.score, self.fragments, self.zone, self.collisions, self.best):
+        for label in (self.score, self.fragments, self.zone, self.collisions, self.best, *self.letters):
             label.draw()

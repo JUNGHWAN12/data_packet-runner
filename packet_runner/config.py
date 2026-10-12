@@ -88,6 +88,18 @@ ITEM_RULES = [
     ("magnet", 0, 20.0, 0.30),
 ]
 
+# --- 스팸 미사일·PACKET 보너스 (구현계획 §15 2차) ---
+MISSILE_FACTOR = 1.8         # 미사일 속도 = 배경 속도 × 이 배수 (감속돼도 도착 시각이 다른 장애물과 같이 밀린다)
+MISSILE_BOX = (64, 40)       # 미사일 충돌 크기 (그림보다 작게)
+MISSILE_LOW_Y = 50           # 낮은 미사일 중심 높이(바닥 기준) — 점프로 피함
+MISSILE_HIGH_Y = 110         # 높은 미사일 중심 높이 — 슬라이딩으로 피함
+MISSILE_WARN = 1.0           # 화면에 들어오기 몇 초 전부터 오른쪽 끝에 ! 경고
+BONUS_WORD = "PACKET"
+LETTER_FIRST = 10.0          # 첫 글자가 나올 수 있는 시각
+LETTER_EVERY = 14.0          # 글자 사이 최소 간격(초). 놓친 글자는 다시 나온다
+BONUS_TIME = 10.0            # 보너스 타임 길이
+BONUS_TINT = (255, 200, 60, 55)
+
 # --- 로컬 랭킹 ---
 RANKING_PATH = ROOT / "data" / "ranking.json"
 RANKING_SIZE = 10            # 오늘의 TOP 10

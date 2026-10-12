@@ -18,12 +18,14 @@ LEGEND_ROWS = [
         ("error_cloud", "통신 오류 구름", "슬라이딩", 0.36),
         ("spike_warning", "트래픽 폭주", "2단 점프", 0.9),
         ("phish", "가짜 데이터(피싱)", "슬라이딩으로 피하기", 0.9),
+        ("spam", "스팸 미사일", "! 경고 보고 피하기", 0.8),
     ],
     [
         ("fragment", "데이터 조각", "+10점", 0.8),
         ("token", "재전송 토큰", "잃은 점수 복구", 0.8),
         ("shield", "방화벽 실드", "충돌 한 번 막기", 0.8),
         ("magnet", "라우팅 자석", "조각 끌어오기", 0.8),
+        ("letter", "PACKET 글자", "다 모으면 보너스 타임", 0.8),
     ],
 ]
 
@@ -58,12 +60,13 @@ class TitleView(arcade.View):
 
         self.legend_icons = arcade.SpriteList()
         self.legend_labels = []
-        step = 290
+        step = 285
         for row, (entries, y) in enumerate(zip(LEGEND_ROWS, (565, 400))):
             x0 = cx - step * (len(entries) - 1) / 2
             for i, (name, label, action, scale) in enumerate(entries):
                 x = x0 + step * i
-                sprite = arcade.Sprite(assets.icon(name), scale=scale)
+                texture = assets.letter("P") if name == "letter" else assets.icon(name)
+                sprite = arcade.Sprite(texture, scale=scale)
                 sprite.position = (x, y)
                 self.legend_icons.append(sprite)
                 self.legend_labels.append(assets.text(label, x, y - 68, C.WHITE, 19, anchor_x="center"))

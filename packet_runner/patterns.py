@@ -14,9 +14,14 @@ CLOUD = "cloud"             # 통신 오류 구름 — 슬라이딩
 GAP = "gap"                 # 연결 단절 구간(바닥 틈) — 점프
 SPIKE = "spike"             # 트래픽 폭주(높이 쌓인 패킷 탑) — 2단 점프
 PHISH = "phish"             # 피싱 미끼(가짜 데이터 조각) — 슬라이딩(또는 점프)으로 피함
+MISSILE_LOW = "missile_low"     # 낮게 날아오는 스팸 미사일 — 점프
+MISSILE_HIGH = "missile_high"   # 높게 날아오는 스팸 미사일 — 슬라이딩
+MISSILES = (MISSILE_LOW, MISSILE_HIGH)
 
-OBSTACLES = (CONGESTION, CLOUD, SPIKE)       # 스프라이트로 그리는 장애물 (틈과 피싱 미끼는 따로)
-ACTION = {CONGESTION: "jump", GAP: "jump", CLOUD: "slide", SPIKE: "double", PHISH: "slide"}
+OBSTACLES = (CONGESTION, CLOUD, SPIKE) + MISSILES   # 스프라이트로 그리는 장애물 (틈과 피싱 미끼는 따로)
+OVERHEAD = (CLOUD, MISSILE_HIGH)                    # 머리 위를 막는 장애물: 그 아래에서는 일어서거나 점프하지 않는다
+ACTION = {CONGESTION: "jump", GAP: "jump", CLOUD: "slide", SPIKE: "double", PHISH: "slide",
+          MISSILE_LOW: "jump", MISSILE_HIGH: "slide"}
 ITEM_SIZE = 54                               # 아이템 판정 크기 (world.Item.rect와 같음)
 
 # 앞 장애물이 끝난 뒤 다음 장애물이 시작될 때까지 필요한 최소 시간(초)
@@ -63,6 +68,10 @@ PATTERNS = [
     Pattern("gap_spike", ((GAP, 0.0), (SPIKE, 1.5)), 2),
     Pattern("phish_pair", ((PHISH, 0.0), (PHISH, 0.55)), 2),
     Pattern("cloud_phish", ((CLOUD, 0.0), (PHISH, 0.65)), 2),
+    Pattern("missile_low", ((MISSILE_LOW, 0.0),), 2),
+    Pattern("missile_high", ((MISSILE_HIGH, 0.0),), 2),
+    Pattern("missile_pair", ((MISSILE_LOW, 0.0), (MISSILE_HIGH, 1.0)), 2),
+    Pattern("congestion_missile", ((CONGESTION, 0.0), (MISSILE_HIGH, 1.05)), 2),
 ]
 
 
@@ -93,7 +102,15 @@ def width_of(kind: str, speed: float) -> float:
         return C.SPIKE_BOX[0]
     if kind == PHISH:
         return ITEM_SIZE
+    if kind in MISSILES:
+        return C.MISSILE_BOX[0]
     return speed * C.GAP_TIME
+
+
+def missile_start_x(static_x: float) -> float:
+    """정지한 장애물이 static_x에 있을 때와 같은 시각에 플레이어에게 닿도록 미사일을 놓을 x.
+    미사일은 배경 속도의 MISSILE_FACTOR배로 움직이므로, 플레이어까지의 거리도 그만큼 멀리 둔다."""
+    return C.PLAYER_X + C.MISSILE_FACTOR * (static_x - C.PLAYER_X)
 
 
 def duration_of(kind: str, speed: float) -> float:
@@ -122,6 +139,7 @@ class Spawn:
     x: float           # 패턴 시작 지점 기준 거리(px)
     y: float = 0.0     # 아이템 중심 높이(화면 좌표)
     width: float = 0.0
+    apex: bool = False # 점프 궤적 꼭대기의 조각 (PACKET 글자를 놓는 자리)
 
 
 def layout(pattern: Pattern, speed: float, rest: float) -> tuple[list, float]:
@@ -145,7 +163,8 @@ def layout(pattern: Pattern, speed: float, rest: float) -> tuple[list, float]:
         elif ACTION[kind] == "jump":
             # 점프 궤적을 따라 데이터 조각을 놓아 '언제 뛰어야 하는지' 보여 준다
             for dt in (-0.18, 0.0, 0.18):
-                spawns.append(Spawn("fragment", center + dt * speed, C.GROUND_Y + 57 + jump_arc_height(dt)))
+                spawns.append(Spawn("fragment", center + dt * speed, C.GROUND_Y + 57 + jump_arc_height(dt),
+                                    apex=dt == 0.0))
         else:
             for dx in (-66, 0, 66):
                 spawns.append(Spawn("fragment", center + dx, C.GROUND_Y + 36))

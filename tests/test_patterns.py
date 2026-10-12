@@ -113,3 +113,28 @@ def test_phish_layout_puts_real_fragments_at_slide_height():
     assert len(bait) == 1 and len(real) == 2
     for s in real:                             # 슬라이딩하면서도 진짜는 먹을 수 있다
         assert s.y - P.ITEM_SIZE / 2 < C.GROUND_Y + C.SLIDE_BOX[1]
+
+
+def test_low_missile_needs_jump_high_missile_needs_slide():
+    half = C.MISSILE_BOX[1] / 2
+    low_bottom, low_top = C.MISSILE_LOW_Y - half, C.MISSILE_LOW_Y + half
+    high_bottom = C.MISSILE_HIGH_Y - half
+    assert low_bottom < C.SLIDE_BOX[1]                       # 낮은 미사일: 슬라이딩으로는 못 피함
+    assert P.JUMP_APEX > low_top + 50                        # 점프로 넉넉히 넘음
+    assert C.SLIDE_BOX[1] < high_bottom < C.STAND_BOX[1]     # 높은 미사일: 슬라이딩하면 통과, 서 있으면 충돌
+
+
+def test_missile_arrives_with_static_obstacles_even_when_speed_changes():
+    static_x, dt = C.SCREEN_W + 400.0, 1 / 120
+    missile_x = P.missile_start_x(static_x)
+    t, arrive = 0.0, {}
+    while len(arrive) < 2:
+        speed = 450 + 300 * (t % 1.0)                       # 감속·가속이 섞여도
+        static_x -= speed * dt
+        missile_x -= speed * C.MISSILE_FACTOR * dt
+        t += dt
+        if static_x <= C.PLAYER_X and "static" not in arrive:
+            arrive["static"] = t
+        if missile_x <= C.PLAYER_X and "missile" not in arrive:
+            arrive["missile"] = t
+    assert abs(arrive["static"] - arrive["missile"]) < 0.02

@@ -66,6 +66,7 @@ ICONS = {
     "packet": ("mail", "#5EF2FF", 2),
     "shield": ("shield-check", "#6EC1FF", 3),
     "magnet": ("magnet", "#C49BFF", 3),
+    "spam": ("mail-warning", "#FF8A3D", 3),
 }
 PHISH_COLOR = "#FF5D73"
 GLOW_PAD = 12

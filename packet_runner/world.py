@@ -8,6 +8,7 @@ import arcade
 from . import assets
 from . import config as C
 from . import patterns as P
+from .bonus import BonusLetters
 
 SPAWN_X = C.SCREEN_W + 225   # 패턴이 처음 놓이는 화면 밖 x
 
@@ -15,7 +16,9 @@ SPAWN_X = C.SCREEN_W + 225   # 패턴이 처음 놓이는 화면 밖 x
 class Obstacle(arcade.Sprite):
     """혼잡 구간(바닥) 또는 오류 구름(공중). left_x/box_w가 판정 기준이고, 그림은 그 위치에 맞춰 놓인다."""
 
-    ICONS = {P.CONGESTION: "congestion", P.CLOUD: "error_cloud", P.SPIKE: "spike_warning"}
+    ICONS = {P.CONGESTION: "congestion", P.CLOUD: "error_cloud", P.SPIKE: "spike_warning",
+             P.MISSILE_LOW: "spam", P.MISSILE_HIGH: "spam"}
+    MISSILE_Y = {P.MISSILE_LOW: C.MISSILE_LOW_Y, P.MISSILE_HIGH: C.MISSILE_HIGH_Y}
 
     def __init__(self, kind: str, left_x: float):
         texture = assets.icon(self.ICONS[kind])
@@ -23,6 +26,7 @@ class Obstacle(arcade.Sprite):
         self.kind = kind
         self.left_x = left_x
         self.box_w = P.width_of(kind, 0)
+        self.factor = C.MISSILE_FACTOR if kind in P.MISSILES else 1.0   # 배경 대비 이동 속도
         self.passed = False
         self.hit = False
         self.place()
@@ -38,6 +42,8 @@ class Obstacle(arcade.Sprite):
             self.center_y = C.GROUND_Y - b + self.height / 2          # 그림 아래 끝 = 바닥
         elif self.kind == P.SPIKE:
             self.center_y = C.GROUND_Y + C.SPIKE_BOX[1] + 12 - b + self.height / 2  # 탑 꼭대기 위 경고 표시
+        elif self.kind in P.MISSILES:
+            self.center_y = C.GROUND_Y + self.MISSILE_Y[self.kind]
         else:
             self.center_y = C.GROUND_Y + C.CLOUD_TOP + 8 - t + self.height / 2  # 구름 위 끝 = 판정 위쪽
 
@@ -48,6 +54,9 @@ class Obstacle(arcade.Sprite):
             return [arcade.LBWH(cx - hw, C.GROUND_Y + lo, hw * 2, hi - lo) for lo, hi, hw in C.CONGESTION_TIERS]
         if self.kind == P.SPIKE:
             return [arcade.LBWH(cx - C.SPIKE_HIT_W / 2, C.GROUND_Y, C.SPIKE_HIT_W, C.SPIKE_BOX[1] - 6)]
+        if self.kind in P.MISSILES:
+            w, h = C.MISSILE_BOX
+            return [arcade.LBWH(cx - w / 2, C.GROUND_Y + self.MISSILE_Y[self.kind] - h / 2, w, h)]
         return [arcade.LBWH(cx - C.CLOUD_HIT_W / 2, C.GROUND_Y + C.CLOUD_BOTTOM, C.CLOUD_HIT_W,
                             C.CLOUD_TOP - C.CLOUD_BOTTOM)]
 
@@ -59,9 +68,10 @@ class Item(arcade.Sprite):
     # 피싱 미끼 그림은 위쪽에 낚싯바늘이 붙어 있어, 01/10 부분이 판정 위치에 오도록 그림을 위로 올린다
     DRAW_OFFSET = {"phish": 15}
 
-    def __init__(self, kind: str, x: float, y: float):
-        super().__init__(assets.icon(kind))
-        self.kind = kind            # fragment / token / shield / magnet / phish
+    def __init__(self, kind: str, x: float, y: float, letter: str = ""):
+        super().__init__(assets.letter(letter) if kind == "letter" else assets.icon(kind))
+        self.kind = kind            # fragment / token / shield / magnet / phish / letter
+        self.letter = letter
         self.base_y = y
         self.offset = self.DRAW_OFFSET.get(kind, 0)
         self.center_x, self.center_y = x, y + self.offset
@@ -112,7 +122,8 @@ class World:
     def __init__(self, seed: int | None = None):
         self.picker = P.PatternPicker(seed)
         self.rng = self.picker.rng
-        self.obstacles = arcade.SpriteList()
+        self.statics = arcade.SpriteList()      # 제자리 장애물 (아이템보다 아래에 그림)
+        self.missiles = arcade.SpriteList()     # 날아오는 미사일 (아이템 위에 그려 눈에 잘 띄게)
         self.items = arcade.SpriteList()
         self.signs = arcade.SpriteList()
         self.gaps: list[Gap] = []
@@ -120,7 +131,11 @@ class World:
         self.spawning = True
         self.last_item_t = {"token": -99.0, "shield": -99.0, "magnet": -99.0}
         self.phish_seen = 0
+        self.bonus = BonusLetters()
+        self.speed = P.speed_at(0)
         self.anim_t = 0.0
+        self.warn_label = assets.text("!", 0, 0, (255, 138, 61), 48, anchor_x="center", anchor_y="center")
+        self.letter_hint = assets.text("PACKET 글자를 모으면 보너스!", 0, 0, C.YELLOW, 21, anchor_x="center")
         self.phish_label = assets.text("가짜 데이터!", 0, 0, C.RED, 21, anchor_x="center")
         self.spike_label = assets.text("2단 점프!", 0, 0, (255, 159, 69), 21, anchor_x="center")
 
@@ -138,8 +153,11 @@ class World:
         origin = SPAWN_X - overshoot
         for s in spawns:
             x = origin + s.x
-            if s.kind in P.OBSTACLES:
-                self.obstacles.append(Obstacle(s.kind, x))
+            if s.kind in P.MISSILES:
+                # 정지 장애물과 같은 시각에 도착하도록 더 멀리서 출발시킨다
+                self.missiles.append(Obstacle(s.kind, P.missile_start_x(x)))
+            elif s.kind in P.OBSTACLES:
+                self.statics.append(Obstacle(s.kind, x))
             elif s.kind == P.PHISH:
                 bait = Item("phish", x, s.y)
                 bait.first = self.phish_seen < 2      # 처음 두 개에는 '가짜 데이터!' 안내를 붙인다
@@ -150,6 +168,10 @@ class World:
                 gap.place()
                 self.gaps.append(gap)
                 self.signs.append(gap.sign)
+            elif s.kind == "fragment" and s.apex and self.bonus.due(t):
+                # 점프 궤적 꼭대기에 PACKET 글자: 제때 뛰어야 먹을 수 있다
+                self.items.append(Item("letter", x, s.y, self.bonus.next_letter))
+                self.bonus.spawned(t)
             elif s.kind == "fragment":
                 self.items.append(Item("fragment", x, s.y))
             elif s.kind == "item_slot":
@@ -170,12 +192,49 @@ class World:
             return "token"
         return None
 
+    @property
+    def obstacles(self) -> list:
+        return [*self.statics, *self.missiles]
+
+    # --- 보너스 타임 ---
+    def start_bonus(self) -> None:
+        """보너스 타임 시작: 앞으로 올 장애물·틈·가짜 데이터를 데이터 조각으로 바꾸고 조각 물결을 보낸다."""
+        ahead = C.PLAYER_X + 150
+        for o in [o for o in self.obstacles if o.left_x > ahead]:
+            self.items.append(Item("fragment", min(o.center_x, C.SCREEN_W + 200), C.GROUND_Y + 60))
+            o.remove_from_sprite_lists()
+        for gap in [g for g in self.gaps if g.left_x > ahead]:
+            gap.sign.remove_from_sprite_lists()
+            self.gaps.remove(gap)
+        for item in [i for i in self.items if i.kind == "phish" and i.center_x > ahead]:
+            self.items.append(Item("fragment", item.center_x, C.GROUND_Y + 60))
+            item.remove_from_sprite_lists()
+        self.next_spawn = 0.0
+
+    def _spawn_bonus_wave(self, overshoot: float) -> None:
+        speed = self.speed
+        origin = SPAWN_X - overshoot
+        shape = self.rng.choice(("line", "arc", "high_arc"))
+        for i in range(7):
+            dt = (i - 3) * 0.13
+            if shape == "line":
+                y = C.GROUND_Y + 60
+            elif shape == "arc":
+                y = C.GROUND_Y + 57 + max(0.0, P.jump_arc_height(dt))
+            else:   # 2단 점프로 닿는 높은 무지개
+                y = C.GROUND_Y + 57 + P.JUMP_APEX + 120 - 400 * dt * dt
+            self.items.append(Item("fragment", origin + (i * 0.13) * speed, y))
+        self.next_spawn = 1.2 * speed - overshoot
+
     # --- 매 프레임 ---
     def update(self, dt: float, speed: float, t: float, lost_pool: int) -> None:
         self.anim_t += dt
+        self.speed = speed
+        was_bonus = self.bonus.in_bonus
+        self.bonus.update(dt)
         dx = -speed * dt
         for o in self.obstacles:
-            o.left_x += dx
+            o.left_x += dx * o.factor
             o.place()
         for item in self.items:
             item.center_x += dx
@@ -191,7 +250,19 @@ class World:
         for gap in [g for g in self.gaps if g.right_x < -225]:
             gap.sign.remove_from_sprite_lists()
             self.gaps.remove(gap)
+        # 놓친 PACKET 글자는 나중에 다시 나온다
+        for item in self.items:
+            if item.kind == "letter" and not item.passed and item.center_x < C.PLAYER_X - 80:
+                item.passed = True
+                self.bonus.missed()
 
+        if self.bonus.in_bonus:
+            self.next_spawn -= speed * dt
+            if self.next_spawn <= 0 and t < C.GAME_TIME - 3:
+                self._spawn_bonus_wave(-self.next_spawn)
+            return
+        if was_bonus:
+            self.next_spawn = 1.2 * speed      # 보너스가 끝나면 잠깐 쉬었다가 다시 장애물
         if self.spawning:
             self.next_spawn -= speed * dt
             if self.next_spawn <= 0:
@@ -203,11 +274,15 @@ class World:
                 return False
         return True
 
-    def ceiling(self, x: float = C.PLAYER_X, ahead: float = 0.0) -> bool:
-        """지금 일어서면(ahead > 0이면 앞으로 ahead px 안에서) 오류 구름에 닿는지."""
+    def ceiling(self, x: float = C.PLAYER_X, ahead_time: float = 0.0) -> bool:
+        """지금 일어서면(ahead_time > 0이면 그 시간 안에) 머리 위 장애물(오류 구름·높은 미사일)에 닿는지."""
         w, h = C.STAND_BOX
-        stand = arcade.LBWH(x - w / 2 - 4, C.GROUND_Y, w + 8 + ahead, h)
-        return any(o.kind == P.CLOUD and o.hits(stand) for o in self.obstacles)
+        for o in self.obstacles:
+            if o.kind in P.OVERHEAD:
+                ahead = o.factor * self.speed * ahead_time
+                if o.hits(arcade.LBWH(x - w / 2 - 4, C.GROUND_Y, w + 8 + ahead, h)):
+                    return True
+        return False
 
     def gap_under(self, x: float = C.PLAYER_X) -> Gap | None:
         for gap in self.gaps:
@@ -258,12 +333,38 @@ class World:
             self.spike_label.y = o.top + 14
             self.spike_label.draw()
 
+    def draw_missiles(self) -> None:
+        """스팸 미사일: 화면에 들어오기 전 오른쪽 끝에 ! 경고, 날아올 때는 뒤에 불꽃 꼬리."""
+        warn_dist = C.MISSILE_FACTOR * self.speed * C.MISSILE_WARN
+        for o in self.missiles:
+            y = C.GROUND_Y + Obstacle.MISSILE_Y[o.kind]
+            if C.SCREEN_W < o.left_x < C.SCREEN_W + warn_dist:
+                # 항상 보이되 밝기가 맥박치듯 변하는 경고 (꺼지는 순간이 없도록)
+                pulse = 0.55 + 0.45 * math.sin(self.anim_t * 14)
+                x = C.SCREEN_W - 70
+                arcade.draw_triangle_filled(x, y + 42, x - 42, y - 30, x + 42, y - 30, (255, 138, 61, int(140 + 110 * pulse)))
+                self.warn_label.x, self.warn_label.y = x, y
+                self.warn_label.color = (20, 10, 10)
+                self.warn_label.draw()
+            elif o.left_x < C.SCREEN_W + 40:
+                for k in range(5):
+                    fx = o.right_x + 10 + k * 22 + random.uniform(-5, 5)
+                    size = 14 - k * 2.5
+                    color = (255, 230 - k * 35, 90, 230 - k * 40)
+                    arcade.draw_lrbt_rectangle_filled(fx - size, fx + size, y - size, y + size, color)
+
     def draw(self) -> None:
         self.signs.draw(pixelated=True)
         self.draw_error_fields()
         self.draw_spikes()
-        self.obstacles.draw(pixelated=True)
+        self.statics.draw(pixelated=True)
         self.items.draw(pixelated=True)
+        self.draw_missiles()
+        self.missiles.draw(pixelated=True)
+        for item in self.items:
+            if item.kind == "letter" and item.letter == C.BONUS_WORD[0] and not item.passed:
+                self.letter_hint.x, self.letter_hint.y = item.center_x, item.top + 12
+                self.letter_hint.draw()
         for item in self.items:
             if item.kind == "phish" and item.first and not item.passed:
                 self.phish_label.x, self.phish_label.y = item.center_x, item.top + 10

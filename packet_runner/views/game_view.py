@@ -74,6 +74,7 @@ class GameView(arcade.View):
                                 C.SCREEN_W / 2, 810, C.WHITE, 27, anchor_x="center")
         self.banner = assets.text("", C.SCREEN_W / 2, 660, C.WHITE, 51, anchor_x="center")
         self.banner_sub = assets.text("", C.SCREEN_W / 2, 600, C.CYAN, 24, anchor_x="center")
+        self.bonus_label = assets.text("", C.SCREEN_W / 2, 820, C.YELLOW, 39, anchor_x="center")
         self._set_banner()
 
     # --- 입력 ---
@@ -94,7 +95,7 @@ class GameView(arcade.View):
         self.banner.text = f"구간 {self.zone + 1} · {C.ZONES[self.zone][1]}"
         self.banner_sub.text = ["낮은 속도로 점프와 슬라이딩을 익혀요   ·   보라색 자석은 데이터 조각을 끌어와요",
                                 "트래픽 폭주는 2단 점프로!   빨간 가짜 데이터(피싱)는 슬라이딩으로 피해요",
-                                "서버가 가까워요! 끝까지 전달하세요"][self.zone]
+                                "스팸 미사일! 오른쪽 끝의 ! 경고를 보고 점프·슬라이딩으로 피해요"][self.zone]
         self.zone_banner = 2.5
 
     def on_update(self, delta_time: float) -> None:
@@ -123,7 +124,7 @@ class GameView(arcade.View):
             self.autopilot.control(self.body, self.world, self.speed)
         ground = self.world.ground_below()
         # 점프하면 착지할 때까지 앞으로 나아가는 거리 안에 구름이 있으면, 슬라이딩 중 점프를 보류한다
-        cloud_ahead = self.world.ceiling(ahead=self.speed * P.AIR_TIME)
+        cloud_ahead = self.world.ceiling(ahead_time=P.AIR_TIME)
         self.body.update(dt, ground, self.world.ceiling(), cloud_ahead)
         if self.body.double_jumped:
             self.effects.burst(C.PLAYER_X, self.body.feet_y, C.CYAN, 8, 300, 3)
@@ -146,7 +147,10 @@ class GameView(arcade.View):
         self._update_trail(dt)
         self._update_shake(dt)
         self.hud.update(self.score.score, self.score.fragments, self.score.collisions, self.t, C.ZONES[self.zone][1],
-                        {kind: self.powerups.fraction(kind) for kind in ("shield", "magnet")})
+                        {kind: self.powerups.fraction(kind) for kind in ("shield", "magnet")},
+                        self.world.bonus.collected)
+        if self.world.bonus.in_bonus:
+            self.bonus_label.text = f"보너스 타임  {math.ceil(self.world.bonus.bonus_left)}"
 
         if self.t >= C.GAME_TIME:
             self.arriving = True
@@ -190,6 +194,18 @@ class GameView(arcade.View):
             self.effects.burst(x, y, C.YELLOW, 24, 390, 4)
             label = f"재전송 완료 +{gained}" if restored else f"+{gained}"
             self.effects.popup(label, x, y + 45, C.YELLOW, 27)
+        elif item.kind == "letter":
+            bonus = self.world.bonus
+            started = bonus.collect()
+            self.score.letters = bonus.collected
+            self.effects.burst(x, y, C.YELLOW, 20, 360, 4)
+            self.effects.popup(f"{item.letter}!  ({bonus.collected}/{len(C.BONUS_WORD)})", x + 30, y + 60, C.YELLOW, 30)
+            if started:
+                self.score.bonus = True
+                self.world.start_bonus()
+                self.banner.text = "보너스 타임!"
+                self.banner_sub.text = "PACKET 조각이 모두 모여 하나의 데이터가 완성됐어요!"
+                self.zone_banner = 2.5
         elif item.kind == "phish":
             lost = self.score.take_phish()
             self.shake_time = 0.15
@@ -303,7 +319,7 @@ class GameView(arcade.View):
         self.clear((5, 8, 20))
         with self.window.camera.activate():
             self.background.draw()
-            tint = C.ZONE_TINTS[self.zone]
+            tint = C.BONUS_TINT if self.world.bonus.in_bonus else C.ZONE_TINTS[self.zone]
             if tint:
                 arcade.draw_lrbt_rectangle_filled(0, C.SCREEN_W, 0, C.SCREEN_H, tint)
             draw_ground(self.scroll, self.world.gap_shapes())
@@ -323,6 +339,8 @@ class GameView(arcade.View):
             if self.zone_banner > 0:
                 self.banner.draw()
                 self.banner_sub.draw()
+            elif self.world.bonus.in_bonus:
+                self.bonus_label.draw()
 
     def _draw_powerups(self) -> None:
         cx, cy = C.PLAYER_X, self.player.center_y
