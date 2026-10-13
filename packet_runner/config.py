@@ -124,11 +124,27 @@ TUTORIAL_PRACTICE_TIME = 20.0  # 튜토리얼 조작 연습 최대 시간 (세 �
 TUTORIAL_PAGE_TIME = 9.0       # 장애물·아이템 안내 페이지를 자동으로 넘기는 시간
 TUTORIAL_LOCK = 1.0            # 페이지가 바뀐 뒤 Space로 넘길 수 없는 시간 (점프 연타로 건너뛰지 않게)
 TUTORIAL_SLIDE_HOLD = 0.35     # 이만큼 누르고 있어야 슬라이딩 연습 완료 ('누르고 있기'를 익히도록)
-# 이름으로 쓸 수 없는 영문 3자 (부적절한 약어·욕설의 영문 표기). 선생님이 자유롭게 추가하면 된다.
+# 이름으로 쓸 수 없는 영문 3자. 이름과 똑같을 때만 막는다(부분 일치 아님).
+# 대문자 A~Z 3글자로 적는다(테스트가 확인). 선생님이 자유롭게 더하거나 빼면 된다.
+# 흔한 단어·이름과 겹치는 SBS, SSG, BTS, SUS, ORG, POT, NUT, RIP, BUT 등은 일부러 넣지 않았다.
 BANNED_NAMES = frozenset({
-    "ASS", "FUK", "FUC", "FCK", "FUQ", "SEX", "SXY", "CUM", "DIK", "DIC", "COK", "TIT", "FAG", "NIG",
-    "KKK", "WTF", "XXX", "KYS", "DIE", "PEE", "POO",
-    "SIB", "SIP", "SSB", "SBL", "BSN", "BYS", "GSK", "JOT", "MCN", "NGM",
+    # 영어 욕설·비속어
+    "FUK", "FUC", "FCK", "FUQ", "FUX", "FKU", "FKN", "FUU", "FFS", "FML", "MFR", "WTF",
+    "SHT", "BCH", "CNT", "DCK", "ASS", "AZZ", "SOB", "POS", "PIS", "DMN", "SUX", "SUK",
+    # 성적·선정적 표현
+    "SEX", "SXY", "SXE", "XXX", "PRN", "CUM", "KUM", "JIZ", "FAP", "DIK", "DIC", "COK", "COC",
+    "TIT", "TTS", "ANL", "VAG", "NUD", "PUS",
+    # 혐오·차별 표현
+    "NIG", "NGR", "NGA", "FAG", "FGT", "KKK", "JAP", "NZI", "NAZ", "HTL", "RTD", "HOE", "SLT", "WHR", "GAY",
+    # 폭력·자해
+    "KYS", "KMS", "DIE", "KIL",
+    # 화장실 말
+    "PEE", "POO",
+    # 한국어 욕설의 로마자·초성
+    "SIB", "SIP", "SSB", "SBL", "SSI", "BSN", "BYS", "GSK", "JOT", "JRL", "MCN", "MCS", "NGM", "NGB",
+    "DRI", "EMI",
+    # 영문 자판 상태에서 한글 욕을 친 경우 (십·좆·봊·섹·젖·ㅗㅗㅗ·엿·똥)
+    "TLQ", "WHW", "QHW", "TPR", "WJW", "HHH", "DUT", "EHD",
 })
 
 # --- 색 ---

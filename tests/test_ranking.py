@@ -101,6 +101,23 @@ def test_name_rules(name, ok):
     assert is_allowed_name(name) is ok
 
 
+def test_banned_names_are_three_capital_letters():
+    # 선생님이 목록을 고칠 때 소문자·2글자·숫자를 넣으면 그 이름은 막히지 않으므로 여기서 잡는다
+    bad = [n for n in C.BANNED_NAMES if not (len(n) == C.NAME_LEN and n.isascii() and n.isalpha() and n.isupper())]
+    assert bad == []
+
+
+@pytest.mark.parametrize("name", ["FKU", "SHT", "PRN", "NGR", "KMS", "JRL", "TLQ", "WHW", "GAY", "EHD"])
+def test_banned_samples(name):
+    assert not is_allowed_name(name)
+    assert finalize_name(name.lower()) == ANONYMOUS
+
+
+@pytest.mark.parametrize("name", ["KIM", "LEE", "PAK", "JIN", "SBS", "SSG", "BTS", "SUS", "ZZZ", "AAA"])
+def test_common_names_still_allowed(name):
+    assert is_allowed_name(name)
+
+
 def test_finalize_name_on_timeout():
     assert finalize_name("") == ANONYMOUS
     assert finalize_name("ab") == "AB-"
