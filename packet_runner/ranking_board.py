@@ -22,6 +22,8 @@ class RankingBoard:
         self.footer = assets.text("", self.cx, 0, C.PURPLE, 21, anchor_x="center")
         self.rows: list = []
         self.highlight: int | None = None
+        self.highlight_color = C.YELLOW
+        self.footer_selected = False        # 운영자 순위 편집에서 '역대 1위' 줄을 골랐을 때
         self.bottom = self.first_row - 60
 
     def set_data(self, records: list, highlight: int | None = None, best: Record | None = None) -> None:
@@ -52,10 +54,13 @@ class RankingBoard:
         if self.highlight is not None and self.highlight < len(self.rows):
             y = self.first_row - self.highlight * ROW_H
             arcade.draw_lrbt_rectangle_filled(self.cx - HALF_W + 20, self.cx + HALF_W - 20, y - 14, y + 34,
-                                              (*C.YELLOW, 45))
+                                              (*self.highlight_color, 45))
         for row in self.rows:
             for label in row:
                 label.draw()
+        if self.footer.text and self.footer_selected:
+            arcade.draw_lrbt_rectangle_filled(self.cx - HALF_W + 20, self.cx + HALF_W - 20, self.footer.y - 12,
+                                              self.footer.y + 32, (*self.highlight_color, 45))
         if self.footer.text:
             arcade.draw_lrbt_rectangle_filled(self.cx - HALF_W + 20, self.cx + HALF_W - 20, self.footer.y + 40,
                                               self.footer.y + 42, (*C.CYAN, 90))

@@ -128,3 +128,25 @@ def test_finalize_name_on_timeout():
 def test_record_has_all_fields(ranking, clock):
     record = ranking.new_record("LEE", 10, 1, 2, "C", 77)
     assert record == Record("LEE", 10, 1, 2, "C", "2026-10-10T10:00:00", 77)
+
+
+def test_anonymize_keeps_score_and_rank_and_saves(tmp_path, ranking, clock):
+    add(ranking, clock, "AAA", 900)
+    add(ranking, clock, "BAD", 800)
+    bad = ranking.top_today()[1]
+    assert ranking.anonymize(bad)
+    assert [(r.name, r.score) for r in ranking.top_today()] == [("AAA", 900), (ANONYMOUS, 800)]
+    reloaded = Ranking(ranking.path, clock=ranking.clock)          # 파일에도 저장됨
+    assert [r.name for r in reloaded.top_today()] == ["AAA", ANONYMOUS]
+    assert ranking.path.with_name(ranking.path.name + ".bak").exists()
+    assert not ranking.anonymize(bad)                               # 이미 ???
+    assert not ranking.anonymize(Record("ZZZ", 1, 0, 0, "C", "2026-10-10T10:00:00"))   # 목록에 없는 기록
+
+
+def test_editable_adds_all_time_best_from_another_day(ranking, clock):
+    add(ranking, clock, "OLD", 9000)                                # 어제 기록이 역대 1위
+    clock.now += timedelta(days=1)
+    add(ranking, clock, "NEW", 100)
+    assert [r.name for r in ranking.editable()] == ["NEW", "OLD"]
+    add(ranking, clock, "TOP", 9500)                                # 오늘 기록이 역대 1위면 한 번만
+    assert [r.name for r in ranking.editable()] == ["TOP", "NEW"]

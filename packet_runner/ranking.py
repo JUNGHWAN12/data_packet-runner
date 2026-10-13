@@ -95,6 +95,22 @@ class Ranking:
         played_at = self.clock().isoformat(timespec="seconds")
         return Record(name, score, fragments, collisions, grade, played_at, seed)
 
+    def editable(self) -> list[Record]:
+        """운영자 순위 편집에서 고를 수 있는 기록: 오늘 TOP 10 + (따로 보이는) 역대 1위."""
+        records = self.top_today()
+        best = self.best_all_time()
+        if best is not None and not any(r is best for r in records):
+            records.append(best)
+        return records
+
+    def anonymize(self, record: Record) -> bool:
+        """운영자용: 부적절한 이름을 '???'로 바꾼다. 점수·순위는 그대로 두고 바로 저장한다(직전 파일은 .bak)."""
+        if record.name == ANONYMOUS or not any(r is record for r in self.records):
+            return False
+        record.name = ANONYMOUS
+        self.save()
+        return True
+
     def reset_today(self) -> None:
         """운영자용: 오늘 기록만 지운다. 지우기 전 파일 전체를 백업한다."""
         if self.path.exists():
