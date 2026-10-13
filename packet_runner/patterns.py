@@ -1,6 +1,8 @@
 """장애물 패턴과 난이도 곡선 (Arcade 비의존 — 단위 테스트 대상).
 
-장애물은 완전 무작위가 아니라 '피할 수 있다고 검증된 패턴' 중에서 고른다.
+장애물 조합은 대부분 규칙(구간별 장애물 종류·개수·난이도 예산)에 따라 그때그때 만들고,
+내보내기 전에 안전장치(check_fair)가 '반드시 피할 수 있는지' 검사한다. 통과하지 못한 조합은 버린다.
+손으로 설계한 대표 패턴(PATTERNS)도 일부 섞는다.
 패턴 안의 시각은 장애물 왼쪽 끝이 플레이어(발 중심)에 닿는 시각(초)이다.
 """
 
@@ -47,6 +49,7 @@ class Pattern:
     name: str
     items: tuple       # ((종류, 시작 시각), ...)
     zone: int          # 이 구간부터 등장
+    rest: float = 0.0  # 패턴 뒤에 더 쉬는 시간(초) — 리듬이 매번 같지 않도록 무작위로 정한다
 
 
 PATTERNS = [
@@ -173,23 +176,124 @@ def layout(pattern: Pattern, speed: float, rest: float) -> tuple[list, float]:
     for i in range(3):
         spawns.append(Spawn("fragment", end + (0.25 + 0.15 * i) * speed, C.GROUND_Y + 60))
     spawns.append(Spawn("item_slot", end + 0.75 * speed, C.GROUND_Y + 90))
-    return spawns, end + rest_after(pattern, rest) * speed
+    return spawns, end + (rest_after(pattern, rest) + pattern.rest) * speed
+
+
+# --- 규칙으로 만드는 조합과 안전장치 ---
+
+COST = {"jump": 1.0, "slide": 1.0, "double": 2.0}   # 동작별 난이도 (미사일은 +0.5)
+SAFETY = 0.05                # 최소 간격에 늘 더하는 여유(초)
+MAX_LEN = 4                  # 한 조합에 넣을 수 있는 장애물 수 상한
+MAX_DOUBLE = 2               # 한 조합의 2단 점프(트래픽 폭주) 상한
+MISSILE_SPACING = 1.0        # 미사일끼리 최소 간격(초): ! 경고가 겹치지 않게
+INTRO_SINGLE_TIME = 20.0     # 게임 시작 뒤 이 시간까지는 장애물을 하나씩만 낸다 (몸풀기)
+SIGNATURE_RATE = 0.25        # 손으로 설계한 대표 패턴을 섞는 비율
+
+
+@dataclass(frozen=True)
+class ZoneRule:
+    kinds: dict              # 나올 수 있는 장애물: 가중치
+    lengths: dict            # 조합의 장애물 수: 가중치
+    budget: float            # 한 조합의 난이도 합 상한
+    slack: tuple             # 최소 간격 위에 더할 무작위 여유(초) 범위
+    rest_jitter: tuple       # 조합 뒤 쉬는 시간에 더할 무작위 시간(초) 범위
+
+
+ZONE_RULES = [
+    ZoneRule({CONGESTION: 3, CLOUD: 3, GAP: 2}, {1: 3, 2: 3}, 2.0, (0.1, 0.4), (0.0, 0.35)),
+    ZoneRule({CONGESTION: 3, CLOUD: 3, GAP: 2, SPIKE: 2, PHISH: 2}, {1: 2, 2: 3, 3: 2}, 4.0, (0.05, 0.3), (0.0, 0.3)),
+    ZoneRule({CONGESTION: 2, CLOUD: 2, GAP: 2, SPIKE: 2, PHISH: 2, MISSILE_LOW: 2, MISSILE_HIGH: 2},
+             {1: 1, 2: 3, 3: 3, 4: 1}, 5.5, (0.0, 0.25), (0.0, 0.25)),
+]
+NEW_KINDS = (SPIKE, PHISH, MISSILE_LOW, MISSILE_HIGH)   # 처음 나올 때는 반드시 혼자 나온다
+
+
+def cost_of(items) -> float:
+    return sum(COST[ACTION[k]] + (0.5 if k in MISSILES else 0.0) for k, _ in items)
+
+
+def check_fair(items, speeds) -> list[str]:
+    """안전장치: 조합이 반드시 피할 수 있는지 검사한다. 문제가 없으면 빈 목록.
+    speeds: 이 조합이 지나갈 수 있는 속도들 (느릴수록 장애물이 오래 머물러 간격이 좁아지므로 모두 검사)."""
+    problems = []
+    kinds = [k for k, _ in items]
+    if not items or items[0][1] != 0.0:
+        problems.append("첫 장애물은 0초에 시작해야 함")
+    if len(items) > MAX_LEN:
+        problems.append(f"장애물 {len(items)}개 > {MAX_LEN}")
+    if kinds.count(SPIKE) > MAX_DOUBLE:
+        problems.append("2단 점프가 너무 많음")
+    for speed in speeds:
+        for (k1, t1), (k2, t2) in zip(items, items[1:]):
+            gap = t2 - (t1 + duration_of(k1, speed))
+            need = MIN_SPACING[(ACTION[k1], ACTION[k2])]
+            if gap < need - 1e-9:
+                problems.append(f"{k1}->{k2} {speed:.0f}px/s 간격 {gap:.2f}s < {need}s")
+    missile_times = [t for k, t in items if k in MISSILES]
+    if any(b - a < MISSILE_SPACING for a, b in zip(missile_times, missile_times[1:])):
+        problems.append("미사일 경고가 겹침")
+    return problems
 
 
 class PatternPicker:
-    """구간에 맞는 패턴을 고른다. 새 구간의 패턴일수록 자주 나오고, 같은 패턴은 3번 연속 나오지 않는다."""
+    """다음 장애물 조합을 정한다.
+
+    - 대부분은 구간 규칙(ZONE_RULES)으로 새로 만들고, 일부는 대표 패턴(PATTERNS)에서 고른다.
+    - 새 장애물(트래픽 폭주·피싱·미사일)은 처음 나올 때 혼자 나온다.
+    - 처음 20초는 하나씩만, 같은 모양은 연달아 나오지 않는다.
+    - 만든 조합은 check_fair를 통과해야 내보낸다. 계속 실패하면 장애물 하나로 대신한다.
+    """
 
     def __init__(self, seed: int | None = None):
         self.seed = seed if seed is not None else random.randrange(1 << 30)
         self.rng = random.Random(self.seed)
         self.history: list = []
+        self.seen: set = set()
 
-    def pick(self, zone: int) -> Pattern:
-        pool = [p for p in PATTERNS if p.zone <= zone]
-        weights = [2.0 if p.zone == zone else 1.0 for p in pool]
-        while True:
-            choice = self.rng.choices(pool, weights)[0]
-            if self.history[-2:] != [choice.name, choice.name]:
-                break
-        self.history.append(choice.name)
-        return choice
+    def pick(self, zone: int, t: float = 999.0) -> Pattern:
+        speeds = (speed_at(t), speed_at(t + 8))
+        rule = ZONE_RULES[zone]
+        new = [k for k in NEW_KINDS if k in rule.kinds and k not in self.seen]
+        if new:
+            pattern = Pattern(f"intro:{new[0]}", ((new[0], 0.0),), zone, rest=0.4)
+        elif t >= INTRO_SINGLE_TIME and self.rng.random() < SIGNATURE_RATE and (sig := self._signature(zone)):
+            pattern = sig
+        else:
+            pattern = self._generate(zone, t, speeds)
+        self.seen.update(k for k, _ in pattern.items)
+        self.history.append(pattern.name)
+        return pattern
+
+    def _signature(self, zone: int) -> Pattern | None:
+        pool = [p for p in PATTERNS if p.zone <= zone and len(p.items) > 1
+                and all(k in self.seen or k not in NEW_KINDS for k, _ in p.items)
+                and self.history[-2:] != [p.name, p.name]]
+        return self.rng.choice(pool) if pool else None
+
+    def _generate(self, zone: int, t: float, speeds: tuple) -> Pattern:
+        rule = ZONE_RULES[zone]
+        kinds_pool = [k for k in rule.kinds if k in self.seen or k not in NEW_KINDS]
+        weights = [rule.kinds[k] for k in kinds_pool]
+        slow = min(speeds)
+        for _ in range(30):
+            n = 1 if t < INTRO_SINGLE_TIME else self.rng.choices(list(rule.lengths), list(rule.lengths.values()))[0]
+            kinds = self.rng.choices(kinds_pool, weights, k=n)
+            items, start = [], 0.0
+            for i, kind in enumerate(kinds):
+                if i:
+                    prev = kinds[i - 1]
+                    need = MIN_SPACING[(ACTION[prev], ACTION[kind])]
+                    if prev in MISSILES and kind in MISSILES:
+                        need = max(need, MISSILE_SPACING)
+                    start = round(start + duration_of(prev, slow) + need + SAFETY + self.rng.uniform(*rule.slack), 3)
+                items.append((kind, start))
+            items = tuple(items)
+            name = "gen:" + "+".join(kinds)
+            if (cost_of(items) > rule.budget or check_fair(items, speeds)
+                    or (self.history and self.history[-1] == name)):
+                continue
+            # 난이도가 높았던 조합 뒤에는 조금 더 쉬게 한다 (몰아치기 → 숨 돌리기)
+            rest = self.rng.uniform(*rule.rest_jitter) + (0.3 if cost_of(items) >= rule.budget * 0.75 else 0.0)
+            return Pattern(name, items, zone, rest=round(rest, 3))
+        safe = self.rng.choice([k for k in kinds_pool if k not in MISSILES])
+        return Pattern(f"gen:{safe}", ((safe, 0.0),), zone, rest=0.3)

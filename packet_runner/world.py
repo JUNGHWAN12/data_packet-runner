@@ -142,9 +142,9 @@ class World:
     # --- 생성 ---
     def _spawn_pattern(self, t: float, lost_pool: int, overshoot: float) -> None:
         zone = P.zone_at(t)
-        # 약간 앞선 시각의 속도로 간격을 잡는다 → 실제로는 시간 간격이 같거나 더 넉넉해진다
-        speed = P.speed_at(t + 2.5)
-        pattern = self.picker.pick(zone)
+        # 이 조합이 다 지나갈 때쯤의(더 빠른) 속도로 간격을 잡는다 → 실제로는 시간 간격이 같거나 더 넉넉해진다
+        speed = P.speed_at(t + 8)
+        pattern = self.picker.pick(zone, t)
         lead = (SPAWN_X - C.PLAYER_X) / speed
         if t + lead + P.pattern_duration(pattern, speed) > C.GAME_TIME - C.SPAWN_STOP_BEFORE + 3:
             self.spawning = False   # 서버 도착 전에 끝나지 않는 패턴은 만들지 않는다
