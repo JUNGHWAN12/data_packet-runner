@@ -135,25 +135,28 @@ TUTORIAL_LOCK = 1.0            # 페이지가 바뀐 뒤 Space로 넘길 수 없
 TUTORIAL_SLIDE_HOLD = 0.35     # 이만큼 누르고 있어야 슬라이딩 연습 완료 ('누르고 있기'를 익히도록)
 # 이름으로 쓸 수 없는 영문 3자. 이름과 똑같을 때만 막는다(부분 일치 아님).
 # 대문자 A~Z 3글자로 적는다(테스트가 확인). 선생님이 자유롭게 더하거나 빼면 된다.
-# 흔한 단어·이름과 겹치는 SBS, SSG, BTS, SUS, ORG, POT, NUT, RIP, BUT 등은 일부러 넣지 않았다.
+# 부스 세 게임(클린 데이터 라벨러·데이터 패킷 러너 등) 공통 목록 119개. 한 게임만 고치지 말고 함께 맞춘다.
+# SUS·DIE·ROT처럼 흔한 단어와 겹쳐도 막기로 했다(부스 운영 결정). SBS, SSG, BTS, ORG, POT, NUT, RIP, BUT 등은 넣지 않았다.
 BANNED_NAMES = frozenset({
     # 영어 욕설·비속어
     "FUK", "FUC", "FCK", "FUQ", "FUX", "FKU", "FKN", "FUU", "FFS", "FML", "MFR", "WTF",
-    "SHT", "BCH", "CNT", "DCK", "ASS", "AZZ", "SOB", "POS", "PIS", "DMN", "SUX", "SUK",
+    "SHT", "BCH", "CNT", "DCK", "ASS", "AZZ", "SOB", "POS", "PIS", "DMN", "SUX", "SUK", "GTF", "STF",
     # 성적·선정적 표현
     "SEX", "SXY", "SXE", "XXX", "PRN", "CUM", "KUM", "JIZ", "FAP", "DIK", "DIC", "COK", "COC",
-    "TIT", "TTS", "ANL", "VAG", "NUD", "PUS",
+    "TIT", "TTS", "ANL", "VAG", "NUD", "PUS", "PNS", "DTF", "POR",
     # 혐오·차별 표현
     "NIG", "NGR", "NGA", "FAG", "FGT", "KKK", "JAP", "NZI", "NAZ", "HTL", "RTD", "HOE", "SLT", "WHR", "GAY",
+    "CNK", "GOK", "LES",
     # 폭력·자해
     "KYS", "KMS", "DIE", "KIL",
     # 화장실 말
     "PEE", "POO",
     # 한국어 욕설의 로마자·초성
     "SIB", "SIP", "SSB", "SBL", "SSI", "BSN", "BYS", "GSK", "JOT", "JRL", "MCN", "MCS", "NGM", "NGB",
-    "DRI", "EMI",
-    # 영문 자판 상태에서 한글 욕을 친 경우 (십·좆·봊·섹·젖·ㅗㅗㅗ·엿·똥)
+    "DRI", "EMI", "CBL", "GSE", "JNA", "JOS", "NOM", "YMB", "YMN", "JMT", "ILB",
+    # 영문 자판 상태에서 한글 욕을 친 경우 (십·좆·봊·섹·젖·ㅗㅗㅗ·엿·똥, 병신·존나·꺼져·닥쳐·자지 등)
     "TLQ", "WHW", "QHW", "TPR", "WJW", "HHH", "DUT", "EHD",
+    "QUD", "WHS", "RJW", "EKR", "WKW", "ROT", "TOR", "ALC", "WLF", "DOA", "WHF", "SUS", "QUS", "QKQ",
 })
 
 # --- 색 ---

@@ -107,13 +107,19 @@ def test_banned_names_are_three_capital_letters():
     assert bad == []
 
 
-@pytest.mark.parametrize("name", ["FKU", "SHT", "PRN", "NGR", "KMS", "JRL", "TLQ", "WHW", "GAY", "EHD"])
+def test_banned_names_match_booth_common_list():
+    # 부스의 세 게임이 같은 금칙어 119개를 쓴다. 한 게임만 고치면 다른 게임에서 등록되는 이름이 생긴다.
+    assert len(C.BANNED_NAMES) == 119
+
+
+@pytest.mark.parametrize("name", ["FKU", "SHT", "PRN", "NGR", "KMS", "JRL", "TLQ", "WHW", "GAY", "EHD",
+                                  "SUS", "WHS", "QUD", "YMB"])  # 부스 공통 목록에서 더한 것
 def test_banned_samples(name):
     assert not is_allowed_name(name)
     assert finalize_name(name.lower()) == ANONYMOUS
 
 
-@pytest.mark.parametrize("name", ["KIM", "LEE", "PAK", "JIN", "SBS", "SSG", "BTS", "SUS", "ZZZ", "AAA"])
+@pytest.mark.parametrize("name", ["KIM", "LEE", "PAK", "JIN", "SBS", "SSG", "BTS", "ZZZ", "AAA"])
 def test_common_names_still_allowed(name):
     assert is_allowed_name(name)
 
