@@ -35,6 +35,17 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "설치 점검 실패: 종료 코드 $($p.ExitCode)" }
           Remove-Item -Recurse -Force "dist\PacketRunner\logs", "dist\PacketRunner\data" -ErrorAction SilentlyContinue
 
+      - name: 실제로 켜 보기 (시작 단계 오류 확인 — 빌드 서버에는 그래픽 카드가 없어 그래픽 오류는 무시)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist\PacketRunner\PacketRunner.exe" -ArgumentList "--launcher" -PassThru
+          if (-not $p.WaitForExit(20000)) { Stop-Process -Id $p.Id -Force; "20초 동안 켜져 있음(정상)" }
+          else { "종료 코드: $($p.ExitCode)" }
+          Get-ChildItem "dist\PacketRunner\logs" -ErrorAction SilentlyContinue | ForEach-Object { "--- $($_.Name)"; Get-Content $_.FullName }
+          $crash = Get-ChildItem "dist\PacketRunner\logs\crash_*.txt" -ErrorAction SilentlyContinue
+          if ($crash) { throw "시작 단계 오류가 있습니다 (위 crash 파일 참고)" }
+          Remove-Item -Recurse -Force "dist\PacketRunner\logs", "dist\PacketRunner\data" -ErrorAction SilentlyContinue
+
       - uses: actions/upload-artifact@v4
         with:
           name: PacketRunner-windows
