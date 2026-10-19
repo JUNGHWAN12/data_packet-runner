@@ -60,6 +60,7 @@ class TitleView(arcade.View):
         self.edit_help2 = assets.text("", cx, 212, (170, 190, 220), 24, anchor_x="center", anchor_y="center")
         self.notice = assets.text("", cx, 60, (170, 190, 220), 21, anchor_x="center")
         self.notice_time = 0.0
+        self.idle = 0.0                     # 런처 모드: 아무도 누르지 않은 시간
 
     def _refresh_board(self) -> None:
         ranking = self.window.ranking
@@ -164,8 +165,13 @@ class TitleView(arcade.View):
         self.notice_time = seconds
 
     def on_key_press(self, symbol: int, modifiers: int) -> None:
+        self.idle = 0.0
         if self.editing:
             self._edit_key(symbol)
+            return
+        if symbol == arcade.key.ESCAPE and self.window.launcher:
+            log.info("시작 화면에서 ESC — 런처로 돌아가기 위해 종료")
+            self.window.close()
             return
         if symbol in (arcade.key.SPACE, arcade.key.ENTER) and self.ready:
             if self.window.autoplay:        # 자동 플레이(테스트·데모)는 튜토리얼 없이 바로
@@ -207,6 +213,11 @@ class TitleView(arcade.View):
             self.edit_idle += delta_time
             if self.edit_idle >= C.EDIT_TIMEOUT:
                 self._end_edit()
+        elif self.window.launcher and not self.reset_hold.active and not self.edit_hold.active:
+            self.idle += delta_time
+            if self.idle >= C.LAUNCHER_TITLE_IDLE:
+                log.info("시작 화면에서 %.0f초 동안 입력 없음 — 런처로 돌아가기 위해 종료", C.LAUNCHER_TITLE_IDLE)
+                self.window.close()
         self.scroll += 180 * delta_time
         self.background.update(self.scroll)
         self.player.sync(self.body, delta_time, 390, 0)

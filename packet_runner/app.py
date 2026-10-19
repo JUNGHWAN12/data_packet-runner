@@ -23,13 +23,18 @@ def _window_size() -> tuple[int, int]:
 
 
 class GameWindow(arcade.Window):
-    """booth=True(부스 운영 모드): 전체 화면, 마우스 커서 숨김, 개발용 키(F3·F11) 끔."""
+    """booth=True(부스 운영 모드): 전체 화면, 마우스 커서 숨김, 개발용 키(F3·F11) 끔, 창 닫기 막기.
+    launcher=True(부스 런처에서 실행): 부스 모드와 같지만 한 판이 끝나면 스스로 꺼져(종료 코드 0) 런처로 돌아간다.
+    시작 화면에서 ESC를 누르거나 아무도 1분 동안 누르지 않아도 꺼진다. 창 닫기(Alt+F4)도 허용한다."""
 
-    def __init__(self, fullscreen: bool = False, autoplay: bool = False, booth: bool = False):
+    def __init__(self, fullscreen: bool = False, autoplay: bool = False, booth: bool = False,
+                 launcher: bool = False):
         self._ready = False             # 창 준비가 끝나기 전의 오류는 복구하지 않는다
+        booth = booth or launcher
         super().__init__(*_window_size(), C.TITLE, fullscreen=fullscreen or booth, resizable=True)
         self.autoplay = autoplay
         self.booth = booth
+        self.launcher = launcher
         self.debug = False
         self.focused = True             # 다른 창을 누르면 False → 게임을 멈추고 "화면을 클릭해 주세요"
         self.quit_hold = HoldTimer(C.QUIT_HOLD)
@@ -63,7 +68,8 @@ class GameWindow(arcade.Window):
 
     def on_resize(self, width: int, height: int) -> None:
         super().on_resize(width, height)
-        self._fit_camera(width, height)
+        if hasattr(self, "camera"):     # 창을 만드는 도중에 오는 크기 변경은 __init__ 끝에서 맞춘다
+            self._fit_camera(width, height)
 
     def shake(self, dx: float, dy: float) -> None:
         self.camera.position = (C.SCREEN_W / 2 + dx, C.SCREEN_H / 2 + dy)
@@ -94,11 +100,20 @@ class GameWindow(arcade.Window):
 
     def on_close(self) -> None:
         """Alt+F4·창 닫기 버튼. 부스 모드에서는 관람객이 끄지 못하도록 무시하고 ESC 3초로만 끈다."""
-        if self.booth:
+        if self.booth and not self.launcher:
             log.info("창 닫기 요청을 무시함 (부스 모드)")
             self.close_notice = 3.0
             return
         super().on_close()
+
+    def end_session(self, reason: str) -> None:
+        """한 사람의 체험이 끝났을 때: 런처 모드면 프로그램을 끝내 런처로, 아니면 시작 화면으로."""
+        if self.launcher:
+            log.info("%s — 런처로 돌아가기 위해 종료", reason)
+            self.close()
+            return
+        from .views.title_view import TitleView
+        self.show_view(TitleView())
 
     # --- 오류 복구 ---
     def dispatch_event(self, *args):

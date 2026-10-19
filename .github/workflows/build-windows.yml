@@ -1,0 +1,42 @@
+# 부스 노트북용 Windows 실행 파일(PacketRunner.exe)을 만든다.
+# 결과: 이 작업 페이지 아래 Artifacts의 'PacketRunner-windows' (압축을 풀면 PacketRunner 폴더)
+name: Windows 실행 파일 만들기
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, "claude/**"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 설치
+        run: python -m pip install -r requirements.txt pyinstaller==6.22.3 pytest
+
+      - name: 단위 테스트
+        run: python -m pytest -q
+
+      - name: 실행 파일 만들기
+        run: python -m PyInstaller --noconfirm packaging/PacketRunner.spec
+
+      - name: 설치 점검 (--check, 종료 코드 확인)
+        shell: pwsh
+        run: |
+          # 콘솔 없는 프로그램이라 Start-Process -Wait로 끝날 때까지 기다려 종료 코드를 받는다 (런처와 같은 방식)
+          $p = Start-Process -FilePath "dist\PacketRunner\PacketRunner.exe" -ArgumentList "--check" -Wait -PassThru
+          Get-Content "dist\PacketRunner\logs\game.log"
+          if ($p.ExitCode -ne 0) { throw "설치 점검 실패: 종료 코드 $($p.ExitCode)" }
+          Remove-Item -Recurse -Force "dist\PacketRunner\logs", "dist\PacketRunner\data" -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PacketRunner-windows
+          path: dist/PacketRunner
+          retention-days: 30
