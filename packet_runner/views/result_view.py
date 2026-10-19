@@ -103,8 +103,7 @@ class ResultView(arcade.View):
         self.board_until = max(C.RESULT_TIME, self.t + C.BOARD_MIN_TIME)
 
     def _back(self) -> None:
-        from .title_view import TitleView
-        self.window.show_view(TitleView())
+        self.window.end_session("한 판 끝")
 
     # --- 입력 ---
     def on_key_press(self, symbol: int, modifiers: int) -> None:

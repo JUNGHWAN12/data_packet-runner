@@ -63,7 +63,7 @@ def test_picker_respects_zone_and_repeats():
     picker = P.PatternPicker(seed=42)
     for zone in (0, 1, 2):
         for _ in range(300):
-            assert picker.pick(zone).zone <= zone
+            assert picker.pick(zone, 100).zone <= zone
     h = picker.history
     assert all(not (h[i] == h[i + 1] == h[i + 2]) for i in range(len(h) - 2))
 
@@ -138,3 +138,53 @@ def test_missile_arrives_with_static_obstacles_even_when_speed_changes():
         if missile_x <= C.PLAYER_X and "missile" not in arrive:
             arrive["missile"] = t
     assert abs(arrive["static"] - arrive["missile"]) < 0.02
+
+
+def _play(seed: int, step: float = 2.2):
+    """한 판 동안 고르는 조합을 시각과 함께 돌려준다."""
+    picker = P.PatternPicker(seed)
+    out, t = [], 0.0
+    while t < 175:
+        zone = P.zone_at(t)
+        out.append((t, zone, picker.pick(zone, t)))
+        t += step
+    return out
+
+
+@pytest.mark.parametrize("seed", range(40))
+def test_every_pick_passes_safety_check(seed):
+    seen = set()
+    for t, zone, pattern in _play(seed):
+        speeds = (P.speed_at(t), P.speed_at(t + 8))
+        assert P.check_fair(pattern.items, speeds) == [], (t, pattern)
+        rule = P.ZONE_RULES[zone]
+        assert all(k in rule.kinds for k, _ in pattern.items), (zone, pattern)      # 구간에 맞는 장애물만
+        if pattern.name.startswith("gen:"):
+            assert P.cost_of(pattern.items) <= rule.budget
+        if t < P.INTRO_SINGLE_TIME:
+            assert len(pattern.items) == 1                                         # 처음 20초는 하나씩
+        new = [k for k, _ in pattern.items if k in P.NEW_KINDS and k not in seen]
+        if new:
+            assert len(pattern.items) == 1                                         # 새 장애물은 처음엔 혼자
+        seen.update(k for k, _ in pattern.items)
+        assert pattern.rest >= 0
+
+
+def test_patterns_are_varied_in_every_zone():
+    for zone, (a, b) in enumerate([(P.INTRO_SINGLE_TIME, 60), (60, 120), (120, 175)]):
+        shapes = {p.name for s in range(5) for t, z, p in _play(s) if a <= t < b}
+        assert len(shapes) >= (8, 15, 20)[zone], (zone, len(shapes))
+
+
+def test_same_shape_not_twice_in_a_row():
+    for seed in range(20):
+        names = [p.name for _, _, p in _play(seed)]
+        assert all(x != y or x.startswith("intro") for x, y in zip(names, names[1:]) if x.startswith("gen:"))
+
+
+def test_safety_check_rejects_unfair_combos():
+    speeds = (P.speed_at(0), P.speed_at(8))
+    assert P.check_fair(((P.CONGESTION, 0.0), (P.CONGESTION, 0.5)), speeds)      # 점프 사이가 너무 짧음
+    assert P.check_fair(((P.SPIKE, 0.0), (P.SPIKE, 2), (P.SPIKE, 4)), speeds)     # 2단 점프 3번
+    assert P.check_fair(((P.MISSILE_LOW, 0.0), (P.MISSILE_HIGH, 0.9)), speeds)    # 미사일 경고 겹침
+    assert P.check_fair(((P.CONGESTION, 0.0), (P.CLOUD, 1.2)), speeds) == []

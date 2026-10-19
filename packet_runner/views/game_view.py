@@ -134,8 +134,7 @@ class GameView(arcade.View):
             self.idle.update(dt)
             if self.idle.expired:
                 log.info("자리 비움으로 중단%s", self.describe())
-                from .title_view import TitleView
-                self.window.show_view(TitleView())
+                self.window.end_session("자리 비움")
                 return
             if self.idle.warning:
                 self.idle_count.text = f"{int(self.idle.left) + 1}초 뒤 처음 화면으로 돌아갑니다"

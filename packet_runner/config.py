@@ -1,8 +1,13 @@
 """게임 전체에서 쓰는 상수. 난이도·점수·시간 조정은 이 파일만 바꾸면 된다."""
 
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+# Windows 실행 파일(.exe, PyInstaller)로 묶였을 때: 이미지·글꼴은 묶음 안에서 읽고,
+# 순위·로그는 .exe가 있는 폴더에 쓴다 (작업 폴더나 바탕화면 위치와 관계없이 동작하도록)
+FROZEN = getattr(sys, "frozen", False)
+ROOT = Path(getattr(sys, "_MEIPASS", "")) if FROZEN else Path(__file__).resolve().parent.parent
+DATA_ROOT = Path(sys.executable).resolve().parent if FROZEN else ROOT
 ASSETS = ROOT / "assets"
 GENERATED = ASSETS / "generated"
 
@@ -39,7 +44,8 @@ FOOT_HALF = 12           # 이 폭만큼이라도 바닥에 걸쳐 있으면 떨
 FALL_LIMIT = 210         # 바닥 아래로 이만큼 떨어지면 재전송(재배치)
 
 # --- 속도: (시각, 속도 px/s) 사이를 선형 보간 ---
-SPEED_KEYS = [(0, 450), (55, 450), (65, 600), (115, 600), (125, 720), (180, 720)]
+# 시각(초)별 배경 속도(px/초). 구간 안에서도 조금씩 빨라진다 (베타테스트: 기본 속도가 너무 느림 → 450~720에서 올림)
+SPEED_KEYS = [(0, 600), (55, 680), (65, 740), (115, 820), (125, 880), (180, 960)]
 ZONES = [
     (0, "로컬 네트워크"),
     (60, "혼잡한 네트워크"),
@@ -58,7 +64,7 @@ SCORE_PASS = 20
 SCORE_PENALTY = 30
 SCORE_ARRIVAL = 300
 SCORE_TOKEN_FALLBACK = 10
-GRADES = [(7500, "S"), (5500, "A"), (3500, "B"), (0, "C")]   # 임시 기준 — 리허설 후 조정
+GRADES = [(6400, "S"), (4700, "A"), (3000, "B"), (0, "C")]   # 임시 기준(실수 없는 자동 플레이 6,800~7,500점 기준) — 리허설 후 조정
 
 # --- 장애물 ---
 CONGESTION_BOX = (72, 100)       # 바닥 위 차지하는 범위 (폭, 높이) — 간격 계산용
@@ -101,8 +107,8 @@ BONUS_TIME = 10.0            # 보너스 타임 길이
 BONUS_TINT = (255, 200, 60, 55)
 
 # --- 로컬 랭킹 ---
-RANKING_PATH = ROOT / "data" / "ranking.json"
-LOG_PATH = ROOT / "logs" / "game.log"   # 오류·판별 기록 (부스 PC 점검·문제 재현용)
+RANKING_PATH = DATA_ROOT / "data" / "ranking.json"
+LOG_PATH = DATA_ROOT / "logs" / "game.log"   # 오류·판별 기록 (부스 PC 점검·문제 재현용)
 RANKING_SIZE = 10            # 오늘의 TOP 10
 NAME_LEN = 3                 # 이름: 영문 대문자 3자
 NAME_TIME = 15.0             # 이름 입력 제한 시간 (키를 누르면 최소 3초는 더 기다림)
@@ -113,6 +119,7 @@ EDIT_HOLD = 3.0              # 시작 화면에서 F8을 이 시간 동안 누�
 EDIT_TIMEOUT = 30.0          # 순위 편집 중 이 시간 동안 입력이 없으면 자동으로 끝냄 (관람객 앞에 남지 않도록)
 RESET_HOLD = 3.0             # 시작 화면에서 F9를 이 시간 동안 누르면 오늘 순위 초기화 (운영자용)
 # --- 부스 운영 ---
+LAUNCHER_TITLE_IDLE = 60.0   # 런처 모드: 시작 화면에서 이 시간 동안 아무도 안 누르면 꺼져서 런처로 돌아감
 QUIT_HOLD = 3.0              # ESC를 이 시간 동안 누르고 있어야 종료 (관람객이 실수로 끄지 않게)
 TITLE_INPUT_LOCK = 2.0       # 시작 화면에 들어온 뒤 이 시간 동안은 시작 키를 받지 않음 (연타로 바로 다음 판 방지)
 RESULT_SKIP_LOCK = 3.0       # 결과 요약·순위표를 Space로 넘길 수 있기까지의 시간

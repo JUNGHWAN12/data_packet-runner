@@ -2,6 +2,7 @@
 
 import logging
 import logging.handlers
+import sys
 from pathlib import Path
 
 log = logging.getLogger("packet_runner")
@@ -14,9 +15,10 @@ def setup(path: Path) -> None:
         handler.close()
     log.setLevel(logging.INFO)
     log.propagate = False
-    console = logging.StreamHandler()
-    console.setLevel(logging.WARNING)
-    log.addHandler(console)
+    if sys.stderr is not None:          # 콘솔 없는 .exe(--windowed)에서는 화면 출력이 없다
+        console = logging.StreamHandler()
+        console.setLevel(logging.WARNING)
+        log.addHandler(console)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         handler = logging.handlers.RotatingFileHandler(path, maxBytes=1_000_000, backupCount=5, encoding="utf-8")
