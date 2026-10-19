@@ -7,7 +7,32 @@ from pathlib import Path
 # 순위·로그는 .exe가 있는 폴더에 쓴다 (작업 폴더나 바탕화면 위치와 관계없이 동작하도록)
 FROZEN = getattr(sys, "frozen", False)
 ROOT = Path(getattr(sys, "_MEIPASS", "")) if FROZEN else Path(__file__).resolve().parent.parent
-DATA_ROOT = Path(sys.executable).resolve().parent if FROZEN else ROOT
+
+
+def _writable(folder: Path) -> bool:
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        probe = folder / ".write_test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def _data_root() -> Path:
+    """순위·로그를 쓸 폴더. 실행 파일 옆에 쓸 수 없으면(보안 설정·읽기 전용 위치 등) 사용자 폴더를 쓴다."""
+    if not FROZEN:
+        return ROOT
+    beside = Path(sys.executable).resolve().parent
+    if _writable(beside / "data"):
+        return beside
+    import os
+    import tempfile
+    return Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / "PacketRunner"
+
+
+DATA_ROOT = _data_root()
 ASSETS = ROOT / "assets"
 GENERATED = ASSETS / "generated"
 

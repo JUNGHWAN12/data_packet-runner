@@ -159,7 +159,9 @@ python main.py --autoplay    # 자동 플레이 (테스트·데모용, 튜토리
 **실행 파일 만들기**
 - **자동:** 저장소에 올리면 GitHub Actions가 Windows에서 실행 파일을 만듭니다(`.github/workflows/build-windows.yml`). 테스트와 설치 점검(`--check`)을 통과하면 Actions 실행 페이지 아래 **Artifacts → `PacketRunner-windows`** 를 내려받아 압축을 풀면 `PacketRunner` 폴더가 됩니다.
 - **직접:** Python이 설치된 Windows PC에서 `packaging\build_exe.bat`을 더블클릭하면 `dist\PacketRunner\` 폴더가 만들어집니다.
-- 폴더 통째로(`PacketRunner.exe`와 `_internal` 폴더) `Booth\PacketRunner\`에 복사합니다. Python이 없는 PC에서도 켜집니다.
+- 폴더 통째로(`PacketRunner.exe`, `PacketRunner.pkg`, `_internal` 폴더 — 셋 다 있어야 켜짐) `Booth\PacketRunner\`에 복사합니다. Python이 없는 PC에서도 켜집니다. zip은 반드시 '압축 풀기'로 푼 뒤 실행합니다.
+- 게임 코드를 `.exe` 안에 넣지 않고 옆 파일(`PacketRunner.pkg`, `_internal`)로 둡니다. 백신이 새 실행 파일을 검사하며 읽기를 막아 "[Errno 13] Permission denied: ...PacketRunner.exe"로 켜지지 않던 문제를 피하기 위해서입니다.
+- 시작할 때 오류가 나면 한글 안내 창이 뜨고 전체 내용이 `logs\crash_날짜.txt`(쓸 수 없으면 `%LOCALAPPDATA%\PacketRunner`)에 남습니다. `.exe` 옆 폴더에 쓸 수 없으면 순위·기록도 `%LOCALAPPDATA%\PacketRunner`에 저장됩니다.
 - `PacketRunner.exe --check`는 창을 띄우지 않고 필요한 파일과 저장 폴더를 확인합니다(결과는 `logs\game.log`).
 
 **제출 전 점검 팁:** 콘솔 창이 없는 프로그램이라 명령 프롬프트에서 그냥 실행하면 프롬프트가 바로 돌아옵니다. 런처처럼 꺼질 때까지 기다리게 하려면 `start /wait PacketRunner.exe --launcher`로 실행하고, 끝난 뒤 `echo %errorlevel%`로 0인지 확인하세요.
