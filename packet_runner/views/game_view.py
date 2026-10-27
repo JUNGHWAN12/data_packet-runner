@@ -199,7 +199,7 @@ class GameView(arcade.View):
         for o in self.world.obstacles:
             if not o.hit and self.invincible <= 0 and o.hits(box):
                 o.hit = True
-                self._on_hit(o.center_x, self.body.feet_y + 60)
+                self._on_hit(o.center_x, self.body.feet_y + 60, o.kind)
             if not o.passed and o.right_x < C.PLAYER_X - box.width / 2:
                 o.passed = True
                 if not o.hit:
@@ -271,10 +271,10 @@ class GameView(arcade.View):
         self.effects.popup("방화벽 차단!", C.PLAYER_X + 60, y + 135, SHIELD_BLUE, 30)
         return True
 
-    def _on_hit(self, x: float, y: float) -> None:
+    def _on_hit(self, x: float, y: float, kind: str = "") -> None:
         if self._shield_block(y):
             return
-        lost = self.score.penalize()
+        lost = self.score.penalize(kind)
         self.slow_timer = C.HIT_SLOW_TIME
         self.invincible = C.INVINCIBLE_TIME
         self.shake_time = 0.25
@@ -290,7 +290,7 @@ class GameView(arcade.View):
         self.body.respawn()
         if self._shield_block(C.GROUND_Y + 60):
             return
-        lost = self.score.penalize()
+        lost = self.score.penalize("gap")
         self.invincible = C.INVINCIBLE_TIME
         self.slow_timer = C.HIT_SLOW_TIME
         self.shake_time = 0.25

@@ -1,6 +1,6 @@
 """점수 계산 (Arcade 비의존 — 단위 테스트 대상)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from . import config as C
 
@@ -18,6 +18,7 @@ class ScoreBoard:
     blocked: int = 0     # 방화벽 실드가 막아 낸 횟수
     letters: int = 0     # 모은 PACKET 글자 수
     bonus: bool = False  # 보너스 타임을 열었는지
+    hits: dict = field(default_factory=dict)   # 장애물 종류별로 부딪힌 횟수 (결과 화면의 "가장 많이 부딪힌 것")
 
     def add_fragment(self) -> int:
         self.fragments += 1
@@ -29,8 +30,9 @@ class ScoreBoard:
         self.score += C.SCORE_PASS
         return C.SCORE_PASS
 
-    def penalize(self) -> int:
+    def penalize(self, kind: str = "") -> int:
         """충돌·추락 감점. 점수는 0 아래로 내려가지 않고, 실제로 깎인 만큼만 유실 데이터에 쌓인다."""
+        self._count_hit(kind)
         lost = min(C.SCORE_PENALTY, self.score)
         self.score -= lost
         self.lost_pool += lost
@@ -53,12 +55,24 @@ class ScoreBoard:
         lost = min(C.PHISH_PENALTY, self.score)
         self.score -= lost
         self.phished += 1
+        self._count_hit("phish")
         return lost
 
     def avoid_phish(self) -> int:
         self.phish_avoided += 1
         self.score += C.PHISH_AVOID_BONUS
         return C.PHISH_AVOID_BONUS
+
+    def _count_hit(self, kind: str) -> None:
+        if kind:
+            kind = "missile" if kind.startswith("missile") else kind
+            self.hits[kind] = self.hits.get(kind, 0) + 1
+
+    def most_hit(self) -> str | None:
+        """가장 많이 부딪힌 장애물 종류. 하나도 안 부딪혔으면 None."""
+        if not self.hits:
+            return None
+        return max(self.hits, key=lambda kind: self.hits[kind])
 
     def arrive(self) -> int:
         self.score += C.SCORE_ARRIVAL
