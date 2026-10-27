@@ -62,3 +62,15 @@ def test_phish_penalty_is_not_a_collision_and_not_restorable():
     s.score = 10
     assert s.take_phish() == 10 and s.score == 0      # 0점 아래로 내려가지 않음
     assert s.avoid_phish() == C.PHISH_AVOID_BONUS and s.phish_avoided == 1
+
+
+def test_most_hit_counts_each_obstacle_kind():
+    s = ScoreBoard(score=500)
+    assert s.most_hit() is None
+    s.penalize("congestion")
+    s.penalize("missile_low")
+    s.penalize("missile_high")      # 낮은·높은 미사일은 한 종류(스팸)로 센다
+    s.take_phish()
+    assert s.hits == {"congestion": 1, "missile": 2, "phish": 1}
+    assert s.most_hit() == "missile"
+    assert s.collisions == 3        # 피싱은 패킷 손실로 세지 않는다

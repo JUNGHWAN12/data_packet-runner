@@ -1,4 +1,4 @@
-"""결과 화면: 점수 요약 → (오늘 TOP 10이면) 이름 입력 → 오늘의 순위표 → 시작 화면으로 자동 복귀."""
+"""결과 화면: 점수 요약·오늘 배운 네트워크 → (오늘 TOP 10이면) 이름 입력 → 오늘의 순위표 → 시작(또는 게임 선택) 화면으로."""
 
 import arcade
 
@@ -11,8 +11,18 @@ from ..ranking_board import RankingBoard
 from ..scoring import ScoreBoard, grade_for
 
 GRADE_COLORS = {"S": C.YELLOW, "A": C.CYAN, "B": C.GREEN, "C": C.WHITE}
-MESSAGE = ("데이터가 목적지에 도착했습니다! 실제 네트워크에서도 데이터 유실을 확인하고\n"
-           "필요하면 재전송해 안정적으로 전달합니다.")
+LESSONS = ("데이터는 작은 패킷으로 나눠 보내요 — 오늘 내가 그 패킷!",
+           "잃어버린 패킷은 다시 보내요 (재전송)",
+           "방화벽은 위험한 통신을 막아 줘요")
+# 가장 많이 부딪힌 장애물이 실제 네트워크에서 뜻하는 것
+HIT_MEANING = {
+    "congestion": "네트워크 혼잡 — 데이터가 한꺼번에 몰리면 느려지고 패킷이 사라져요",
+    "cloud": "통신 오류 — 잡음 때문에 데이터가 깨지면 다시 보내야 해요",
+    "gap": "연결 단절 — 선이나 와이파이가 끊기면 데이터가 갈 길을 잃어요",
+    "spike": "트래픽 폭주 — 너무 많은 요청이 몰리면 서버가 버티지 못해요",
+    "missile": "스팸 — 원하지 않는 데이터가 쏟아져 네트워크를 막아요",
+    "phish": "피싱 — 진짜처럼 꾸민 가짜 데이터는 열지 말고 피해요",
+}
 LETTER_KEYS = {getattr(arcade.key, ch): ch for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
 
 
@@ -33,24 +43,30 @@ class ResultView(arcade.View):
         self.background = Parallax()
         self.background.update(0)
         cx = C.SCREEN_W / 2
+        # 런처에서 실행했으면 끝난 뒤 게임 선택 화면으로 돌아간다
+        self.back_to = "게임 선택 화면" if self.window.launcher else "처음 화면"
 
         rank_line = (f"오늘 {self.rank}위! 이름을 남겨 보세요" if self.qualifies
                      else f"오늘 {self.rank}위")
+        most = score.most_hit()
+        hit_line = (f"가장 많이 부딪힌 것: {HIT_MEANING[most]}" if most in HIT_MEANING
+                    else "한 번도 부딪히지 않았어요! 완벽한 전송이에요")
         self.summary = [
-            assets.text("데이터 전송 완료!", cx, 900, C.CYAN, 60, anchor_x="center"),
-            assets.text(f"{score.score:,}점", cx - 135, 735, C.WHITE, 78, anchor_x="center"),
-            assets.text(self.grade, cx + 255, 720, GRADE_COLORS[self.grade], 132, anchor_x="center"),
-            assets.text("등급", cx + 255, 682, C.WHITE, 21, anchor_x="center"),
-            assets.text(f"수집한 데이터 조각  {score.fragments}개", cx, 585, C.GREEN, 27, anchor_x="center"),
-            assets.text(f"패킷 손실(충돌·추락)  {score.collisions}회", cx, 537, C.RED, 27, anchor_x="center"),
-            assets.text(f"재전송 토큰 {score.tokens}개  ·  방화벽 차단 {score.blocked}회  ·  PACKET 글자 "
+            assets.text("데이터 전송 완료!", cx, 935, C.CYAN, 54, anchor_x="center"),
+            assets.text(f"{score.score:,}점", cx - 135, 790, C.WHITE, 72, anchor_x="center"),
+            assets.text(self.grade, cx + 255, 775, GRADE_COLORS[self.grade], 120, anchor_x="center"),
+            assets.text("등급", cx + 255, 742, C.WHITE, 21, anchor_x="center"),
+            assets.text(f"수집한 데이터 조각 {score.fragments}개  ·  패킷 손실(충돌·추락) {score.collisions}회",
+                        cx, 680, C.WHITE, 25, anchor_x="center"),
+            assets.text(f"재전송 토큰 {score.tokens}개  ·  방화벽 차단 {score.blocked}회  ·  "
+                        f"가짜 데이터 피함 {score.phish_avoided} / 걸림 {score.phished}  ·  PACKET "
                         f"{score.letters}/{len(C.BONUS_WORD)}" + ("  (보너스 타임!)" if score.bonus else ""),
-                        cx, 489, C.YELLOW, 27, anchor_x="center"),
-            assets.text(f"가짜 데이터(피싱)  피함 {score.phish_avoided}  ·  걸림 {score.phished}", cx, 441,
-                        (255, 150, 165), 27, anchor_x="center"),
-            assets.text(MESSAGE, cx, 370, C.WHITE, 24, anchor_x="center", multiline=True, width=1500,
-                        align="center"),
-            assets.text(rank_line, cx, 250, C.YELLOW if self.qualifies else C.WHITE, 33, anchor_x="center"),
+                        cx, 635, (170, 190, 220), 22, anchor_x="center"),
+            assets.text("오늘 배운 네트워크", cx, 545, C.CYAN, 36, anchor_x="center"),
+            *[assets.text(f"{i + 1}.  {line}", cx - 560, 480 - i * 56, C.WHITE, 31)
+              for i, line in enumerate(LESSONS)],
+            assets.text(hit_line, cx, 295, C.YELLOW if most else C.GREEN, 27, anchor_x="center"),
+            assets.text(rank_line, cx, 205, C.YELLOW if self.qualifies else C.WHITE, 31, anchor_x="center"),
         ]
 
         # 이름 입력
@@ -69,7 +85,8 @@ class ResultView(arcade.View):
         # 순위표
         self.board = RankingBoard(top=960)
         self.board_note = assets.text("", cx, 175, C.WHITE, 27, anchor_x="center")
-        self.countdown = assets.text("", cx, 110, (150, 170, 200), 21, anchor_x="center")
+        # 남은 시간과 "Space·Enter로 바로 이동" 안내: 관람객이 놓치지 않게 크고 밝게
+        self.countdown = assets.text("", cx, 95, C.YELLOW, 33, anchor_x="center")
 
     # --- 단계 전환 ---
     def _next_after_summary(self) -> None:
@@ -111,7 +128,11 @@ class ResultView(arcade.View):
         # 결과를 볼 시간을 주고, Space 연타로 순위표·시작 화면을 지나 다음 판까지 넘어가지 않도록 잠근다
         if self.phase == "summary":
             if confirm and self.t > C.RESULT_SKIP_LOCK:
-                self._next_after_summary()
+                if self.qualifies:
+                    self._next_after_summary()     # TOP 10이면 이름 입력으로
+                else:
+                    self._save(ANONYMOUS)          # 아니면 기록만 남기고 바로 돌아간다 (키 한 번)
+                    self._back()
         elif self.phase == "entry":
             self._entry_key(symbol)
         elif self.phase == "board" and confirm and self.phase_t > C.RESULT_SKIP_LOCK:
@@ -143,7 +164,11 @@ class ResultView(arcade.View):
             if self.t >= C.SUMMARY_TIME:
                 self._next_after_summary()
             else:
-                self.countdown.text = "Space: 다음" if self.t > C.RESULT_SKIP_LOCK else ""
+                remain = int(C.RESULT_TIME - self.t) + 1
+                nxt = "이름 입력" if self.qualifies else self.back_to
+                skip = f"   ·   Space·Enter: 바로 {nxt}" if self.t > C.RESULT_SKIP_LOCK else ""
+                self.countdown.text = (f"{remain}초 뒤 {self.back_to}으로{skip}" if not self.qualifies
+                                       else f"Space·Enter: {nxt}" if skip else "")
         elif self.phase == "entry":
             remain = self.entry_deadline - self.t
             if remain <= 0:
@@ -157,8 +182,8 @@ class ResultView(arcade.View):
             if remain <= 0:
                 self._back()
                 return
-            skip = "  (Space: 바로 이동)" if self.phase_t > C.RESULT_SKIP_LOCK else ""
-            self.countdown.text = f"{int(remain) + 1}초 뒤 처음 화면으로 돌아갑니다{skip}"
+            skip = "   ·   Space·Enter: 바로 이동" if self.phase_t > C.RESULT_SKIP_LOCK else ""
+            self.countdown.text = f"{int(remain) + 1}초 뒤 {self.back_to}으로{skip}"
 
     # --- 그리기 ---
     def on_draw(self) -> None:
